@@ -1,0 +1,491 @@
+ @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        body {
+            margin: 0; padding: 0; overflow: hidden;
+            background-color: #0d0e15;
+            font-family: 'VT323', monospace;
+            touch-action: none; user-select: none;
+        }
+
+        #gameCanvas { display: block; width: 100%; height: 100%; }
+
+        /* UI LAYER */
+        .ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            text-align: center; text-shadow: 2px 2px 0 #000;
+        }
+
+        .title { font-size: 70px; color: #FFD700; margin-bottom: 10px; animation: float 3s ease-in-out infinite; }
+        .subtitle { font-size: 24px; color: #fff; margin-bottom: 30px; }
+
+        /* --- MENU BUTTONS & LAYOUT --- */
+        .menu-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr; /* Chia thành 2 cột đều nhau */
+            gap: 15px; /* Khoảng cách giữa các nút */
+            width: 90%;
+            max-width: 400px; /* Giới hạn chiều rộng để không bị bè ra trên PC */
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            pointer-events: auto;
+            position: relative;
+            border: none;
+            outline: none;
+            color: #fff;
+            padding: 15px 10px;
+            font-size: 26px;
+            font-family: 'VT323', monospace;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 12px;
+            transition: all 0.1s;
+            text-transform: uppercase;
+            width: 100%; /* Nút tự giãn full ô lưới */
+            
+            /* Hiệu ứng 3D Pixel */
+            border: 2px solid rgba(255,255,255,0.8);
+        }
+
+        /* Hiệu ứng khi bấm (Chung cho các nút) */
+        .btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 transparent !important; /* Mất bóng khi bấm */
+            filter: brightness(0.9);
+        }
+
+        /* --- MÀU SẮC TỪNG LOẠI NÚT --- */
+
+        /* 1. Nút Đỏ (Chơi đơn) */
+        .btn-red {
+            background: linear-gradient(to bottom, #ff6b81, #ff4757);
+            box-shadow: 0 6px 0 #b33939;
+            text-shadow: 1px 1px 0 #b33939;
+        }
+
+        /* 2. Nút Tím (Online) */
+        .btn-purple {
+            background: linear-gradient(to bottom, #a55eea, #8854d0);
+            box-shadow: 0 6px 0 #5f27cd;
+            text-shadow: 1px 1px 0 #5f27cd;
+        }
+
+        /* 3. Nút Xanh Dương (Cửa hàng) */
+        .btn-blue {
+            background: linear-gradient(to bottom, #48dbfb, #0abde3);
+            box-shadow: 0 6px 0 #0984e3;
+            text-shadow: 1px 1px 0 #0984e3;
+        }
+
+        /* 4. Nút Xanh Lá (BXH) */
+        .btn-green {
+            background: linear-gradient(to bottom, #55efc4, #00b894);
+            box-shadow: 0 6px 0 #006266;
+            text-shadow: 1px 1px 0 #006266;
+        }
+
+        /* Nút nhỏ trong Lobby/Game Over */
+        .btn-small {
+            min-width: auto;
+            width: auto;
+            padding: 10px 20px;
+            font-size: 22px;
+        }
+
+        .hud { position: absolute; top: 20px; left: 20px; font-size: 40px; color: white; z-index: 10; pointer-events: none; display: none; }
+        .level-hud { position: absolute; top: 60px; left: 20px; font-size: 24px; color: #FFD700; z-index: 10; pointer-events: none; display: none; }
+        
+        /* HUD Online (Hiển thị điểm đối thủ) */
+        .online-hud {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px;
+            border-radius: 8px;
+            font-family: 'VT323', monospace;
+            z-index: 100;
+            text-align: left; /* Căn trái */
+            border: 1px solid #444;
+        }
+        .p-info { font-size: 24px; color: #fff; text-shadow: 2px 2px 0 #000; margin-bottom: 5px; }
+        .status-alive { color: #2ed573; } .status-dead { color: #ff4757; }
+
+        .control-btn {
+            position: absolute; top: 20px; font-size: 30px; color: white;
+            cursor: pointer; pointer-events: auto; z-index: 10;
+            background: rgba(0,0,0,0.5); border-radius: 5px; padding: 5px 10px; border: 2px solid white;
+        }
+        #muteBtn { right: 20px; }
+        #pauseBtn { right: 80px; }
+
+        /* SHOP UI */
+        #shopScreen { background: rgba(0, 0, 0, 0.9); z-index: 20; }
+        .shop-container { display: flex; gap: 40px; margin-bottom: 20px; flex-wrap: wrap; justify-content: center; }
+        .shop-section { display: flex; flex-direction: column; align-items: center; }
+        .shop-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 10px; }
+        
+        .shop-item {
+            pointer-events: auto; border: 2px solid #555; background: #333;
+            width: 90px; height: 90px; display: flex; justify-content: center; align-items: center;
+            cursor: pointer; border-radius: 5px; flex-direction: column; overflow: hidden;
+        }
+        .shop-item.selected { border: 3px solid #FFD700; background: #444; box-shadow: 0 0 15px #FFD700; }
+        
+        .shop-img-preview { width: 50px; height: 50px; object-fit: contain; margin-bottom: 5px; }
+        .shop-icon { font-size: 30px; margin-bottom: 5px; }
+        .shop-label { font-size: 16px; color: #ccc; }
+
+        /* UI BẢNG XẾP HẠNG */
+        input.name-input { 
+            pointer-events: auto; font-family: 'VT323', monospace; 
+            font-size: 24px; padding: 10px; border-radius: 5px; 
+            border: 2px solid #fff; width: 200px; text-align: center; margin-bottom: 10px; 
+        }
+        .leaderboard-box { 
+            background: rgba(0,0,0,0.95); padding: 20px; 
+            border: 2px solid #FFD700; border-radius: 10px; 
+            width: 90%; max-width: 500px; max-height: 400px; 
+            overflow-y: auto; pointer-events: auto; margin-bottom: 20px; 
+        }
+        table { width: 100%; color: white; font-size: 20px; border-collapse: collapse; }
+        th { border-bottom: 1px solid #FFD700; padding: 5px; color: #FFD700; position: sticky; top: 0; background: #000; }
+        td { padding: 8px; border-bottom: 1px solid #444; }
+        #loadingMsg { position: fixed; top: 10px; right: 10px; background: #333; color: #00ff00; padding: 5px 10px; border-radius: 4px; font-size: 16px; display: none; z-index: 100; }
+
+        /* [MỚI] UI LOBBY (PHÒNG CHỜ) */
+        #lobbyScreen { background: rgba(0,0,0,0.9); z-index: 25; }
+        .room-code-display { font-size: 50px; color: #00FFFF; border: 2px dashed #fff; padding: 10px 30px; margin: 20px; background: rgba(0,0,0,0.5); user-select: text; pointer-events: auto; }
+        input.room-input { pointer-events: auto; font-family: 'VT323', monospace; font-size: 28px; padding: 10px; border-radius: 5px; border: 2px solid #fff; width: 160px; text-align: center; margin-bottom: 10px; background: #333; color: #FFD700; }
+
+        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
+        .hidden { display: none !important; }
+        
+        #levelUpMsg {
+            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 80px; color: #FFD700; font-weight: bold;
+            text-shadow: 4px 4px 0px #ff4757; pointer-events: none; opacity: 0;
+            transition: opacity 0.5s; z-index: 15;
+        }
+        /* --- LOBBY STYLING (GIAO DIỆN PHÒNG CHỜ) --- */
+
+        /* Khung chứa nội dung chính */
+        .lobby-panel {
+            background: rgba(0, 0, 0, 0.8);
+            border: 3px solid #0abde3; /* Viền xanh neon */
+            border-radius: 15px;
+            padding: 30px;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 0 0 20px rgba(10, 189, 227, 0.3); /* Đổ bóng phát sáng */
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        /* Ô nhập mã số */
+        .room-input {
+            pointer-events: auto;
+            font-family: 'VT323', monospace;
+            font-size: 35px; /* Chữ to rõ */
+            padding: 10px;
+            border-radius: 8px;
+            border: 2px solid #a55eea;
+            width: 100%;
+            text-align: center;
+            background: rgba(20, 20, 20, 0.9);
+            color: #FFD700;
+            outline: none;
+            transition: 0.3s;
+            letter-spacing: 3px;
+        }
+
+        /* Hiệu ứng khi bấm vào ô nhập */
+        .room-input:focus {
+            border-color: #FFD700;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+        }
+
+        /* Nhóm nút nhập + nút Vào */
+        .input-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Hiển thị Mã phòng (Khi tạo xong) */
+        .room-code-box {
+            font-size: 70px; /* Siêu to */
+            font-weight: bold;
+            color: #55efc4;
+            border: 4px dashed #55efc4;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            margin: 15px 0;
+            text-shadow: 0 0 10px #55efc4;
+            letter-spacing: 5px;
+            user-select: text; /* Cho phép copy */
+            pointer-events: auto;
+        }
+
+        /* Dòng chữ "HOẶC" */
+        .divider {
+            display: flex;
+            align-items: center;
+            color: #aaa;
+            font-size: 20px;
+            margin: 10px 0;
+        }
+        .divider::before, .divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: #555;
+            margin: 0 10px;
+        }
+
+        /* Nút Quay Lại nhỏ gọn */
+        .btn-back {
+            margin-top: 20px;
+            background: transparent;
+            border: 2px solid #ff4757;
+            color: #ff4757;
+            font-size: 24px;
+            padding: 8px 20px;
+        }
+        .btn-back:hover {
+            background: #ff4757;
+            color: white;
+        }
+        /* --- GAME OVER STYLING --- */
+
+        /* Khung chứa Game Over */
+        .gameover-panel {
+            background: rgba(0, 0, 0, 0.9);
+            border: 3px solid #ff4757; /* Viền đỏ báo hiệu chết */
+            border-radius: 20px;
+            padding: 40px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 0 30px rgba(255, 71, 87, 0.4); /* Phát sáng đỏ */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            animation: popIn 0.3s ease-out;
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Tiêu đề Game Over */
+        .go-title {
+            font-size: 60px;
+            color: #ff4757;
+            text-shadow: 0 0 10px #ff4757;
+            margin-bottom: 5px;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        /* Điểm số to */
+        .score-display {
+            font-size: 30px;
+            color: #fff;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px 30px;
+            border-radius: 50px;
+            border: 1px solid #555;
+            margin-bottom: 10px;
+        }
+
+        .score-display span {
+            color: #FFD700;
+            font-weight: bold;
+            font-size: 35px;
+        }
+
+        /* Kỷ lục nhỏ bên dưới */
+        .best-score {
+            font-size: 20px;
+            color: #aaa;
+            margin-top: -10px;
+            margin-bottom: 15px;
+        }
+
+        /* Phần Nhập Tên */
+        .input-section {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+            border-top: 1px solid #444;
+            padding-top: 20px;
+            margin-top: 5px;
+        }
+
+        /* Ô nhập tên */
+        .name-input {
+            width: 80%;
+            padding: 12px;
+            font-family: 'VT323', monospace;
+            font-size: 24px;
+            text-align: center;
+            border-radius: 8px;
+            border: 2px solid #2ed573;
+            background: rgba(0,0,0,0.5);
+            color: #fff;
+            outline: none;
+        }
+        .name-input:focus {
+            box-shadow: 0 0 10px #2ed573;
+        }
+
+        /* Khu vực nút bấm (Chơi lại / Menu) */
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            width: 100%;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        .action-buttons .btn {
+            flex: 1; /* Chia đều chiều rộng */
+            font-size: 22px;
+        }
+
+        /* Thông báo thắng thua (Online) */
+        .online-result {
+            background: rgba(0, 255, 255, 0.1);
+            border: 1px solid #00FFFF;
+            padding: 10px;
+            width: 100%;
+            text-align: center;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+ /* ================================================================= */
+/* 📱 MOBILE LANDSCAPE MODE (Màn hình ngang)                         */
+/* Áp dụng khi chiều cao màn hình nhỏ hơn 500px (Điện thoại xoay)    */
+/* ================================================================= */
+
+@media only screen and (max-height: 500px) and (orientation: landscape) {
+
+    /* 1. TỔNG QUAN: Thu nhỏ không gian chung */
+    .title {
+        font-size: 40px !important; /* Giảm font tiêu đề */
+        margin-bottom: 5px;
+        margin-top: 5px;
+    }
+    .subtitle {
+        font-size: 16px;
+        margin-bottom: 10px;
+    }
+    .ui-layer {
+        justify-content: flex-start; /* Đẩy nội dung lên trên thay vì giữa */
+        padding-top: 10px;
+        overflow-y: auto; /* Cho phép cuộn nếu quá dài */
+    }
+
+    /* 2. MENU CHÍNH: Dàn nút thành 1 hàng ngang (4 cột) thay vì 2 hàng */
+    .menu-grid {
+        grid-template-columns: repeat(4, 1fr) !important; /* 4 nút 1 hàng */
+        gap: 10px;
+        width: 95%;
+        max-width: 600px; /* Cho phép rộng hơn để dàn ngang */
+    }
+    .btn {
+        font-size: 18px !important; /* Chữ nút nhỏ lại */
+        padding: 8px 5px !important;
+    }
+
+    /* 3. LOBBY (PVP ONLINE): Chia đôi màn hình */
+    .lobby-panel {
+        flex-direction: row; /* Chuyển sang dàn ngang */
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        padding: 10px;
+        gap: 15px;
+        max-width: 600px;
+    }
+    /* Bên trái: Tạo phòng */
+    #lobbyMain > button { width: auto; margin-right: 10px; }
+    
+    /* Input nhỏ lại */
+    #lobbyNameInput, .room-input {
+        font-size: 20px !important;
+        padding: 5px !important;
+        height: 40px;
+    }
+    .room-code-box {
+        font-size: 40px !important; /* Mã phòng nhỏ lại */
+        margin: 5px 0;
+    }
+    .btn-back {
+        margin-top: 5px;
+        padding: 5px 15px;
+        font-size: 16px;
+    }
+
+    /* 4. GAME OVER: Layout 2 cột (Trái: Điểm - Phải: Nút) */
+    .gameover-panel {
+        flex-direction: row; /* Dàn ngang */
+        flex-wrap: wrap;
+        justify-content: space-around;
+        padding: 15px;
+        max-width: 600px;
+        gap: 10px;
+    }
+    
+    /* Cột bên trái: Tiêu đề + Điểm */
+    .go-title { font-size: 40px !important; width: 100%; margin: 0;} /* Tiêu đề vẫn ở trên cùng */
+    
+    .score-block { /* Nhóm điểm số */
+        display: flex; 
+        flex-direction: column;
+        justify-content: center;
+        width: 45%; 
+    }
+    .score-display {
+        font-size: 20px !important;
+        padding: 5px 15px;
+        margin-bottom: 5px;
+    }
+    .score-display span { font-size: 24px !important; }
+    
+    /* Cột bên phải: Form nhập tên + Nút */
+    .input-section {
+        width: 45%;
+        border-top: none !important; /* Bỏ kẻ ngang */
+        border-left: 1px solid #444; /* Thêm kẻ dọc ngăn cách */
+        padding-top: 0;
+        padding-left: 15px;
+        margin-top: 0;
+    }
+    
+    .name-input {
+        font-size: 18px !important;
+        padding: 5px !important;
+    }
+    
+    .action-buttons .btn {
+        font-size: 16px !important;
+        padding: 5px !important;
+    }
+    
+    /* Ẩn bớt các text không cần thiết */
+    .best-score { margin-bottom: 5px; font-size: 14px; }
+    .leaderboard-box { max-height: 200px !important; }
+    .tab-btn { font-size: 16px !important; padding: 2px 10px !important; }
+    .tab-container { margin-bottom: 5px !important; }
+}

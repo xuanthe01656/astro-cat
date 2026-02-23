@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Astro Cat 5.0: Original + Online Solo</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <link rel="stylesheet" href="/styles/style.css">
+    <style>
+        .tab-container { display: flex; justify-content: center; gap: 10px; margin-bottom: 10px; }
+        .tab-btn { background: #333; color: #fff; border: 1px solid #777; padding: 5px 15px; cursor: pointer; font-family: 'VT323', monospace; font-size: 20px; }
+        .tab-btn.active { background: #FFD700; color: #000; border-color: #FFD700; }
+        #lobbyNameInput {
+            width: 90%; padding: 10px; font-family: 'VT323', monospace; font-size: 24px;
+            text-align: center; border-radius: 8px; border: 2px solid #FFD700;
+            background: rgba(0,0,0,0.5); color: #fff; outline: none; margin-bottom: 15px;
+        }
+        .p-name-label { font-size: 0.7em; opacity: 0.8; margin-right: 5px; }
+        /* CSS BỔ SUNG CHO TÍNH NĂNG MỚI */
+        .tab-container { display: flex; justify-content: center; gap: 10px; margin-bottom: 10px; }
+        .tab-btn { background: #333; color: #fff; border: 1px solid #777; padding: 5px 15px; cursor: pointer; font-family: 'VT323', monospace; font-size: 20px; pointer-events: auto; } /* Thêm pointer-events: auto cho nút tab */
+        .tab-btn.active { background: #FFD700; color: #000; border-color: #FFD700; }
+        
+        #lobbyNameInput {
+            pointer-events: auto; /* <--- QUAN TRỌNG: DÒNG NÀY GIÚP CLICK VÀO ĐƯỢC */
+            user-select: text;    /* <--- QUAN TRỌNG: CHO PHÉP CHỌN VĂN BẢN */
+            width: 90%; padding: 10px; font-family: 'VT323', monospace; font-size: 24px;
+            text-align: center; border-radius: 8px; border: 2px solid #FFD700;
+            background: rgba(0,0,0,0.5); color: #fff; outline: none; margin-bottom: 15px;
+        }
+        .p-name-label { font-size: 0.7em; opacity: 0.8; margin-right: 5px; }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="scoreHud" class="hud">0</div>
+    <div id="levelHud" class="level-hud">LVL 1</div>
+    <div id="levelUpMsg">LEVEL UP!</div>
+    <div id="loadingMsg">Đang xử lý...</div>
+
+    <div id="onlineHud" class="online-hud" style="display: none;">
+        <div class="p-info" style="color: #FFD700;">
+            <span id="localNameDisplay" class="p-name-label">BẠN</span>: <span id="localScoreOnline">0</span>
+        </div>
+        <div class="p-info" style="color: #00FFFF;">
+            <span id="remoteNameDisplay" class="p-name-label">ĐỐI THỦ</span>: <span id="remoteScoreOnline">0</span>
+        </div>
+        <div id="onlineStatus" style="color: #2ed573; font-size: 18px;">Kết nối OK</div>
+    </div>
+
+    <div id="muteBtn" class="control-btn">🔊</div>
+    <div id="pauseBtn" class="control-btn hidden">⏸️</div>
+
+    <div id="startScreen" class="ui-layer">
+        <div class="title">ASTRO CAT 5</div>
+        <div class="subtitle">Ultimate Online</div>
+        
+        <div class="menu-grid">
+            <button class="btn btn-red" onclick="startGame('single')">
+                🚀 Chơi Đơn
+            </button>
+            <button class="btn btn-purple" onclick="showLobby()">
+                ⚔️ PvP Online
+            </button>
+            
+            <button class="btn btn-blue" onclick="openShop()">
+                🛒 Cửa Hàng
+            </button>
+            <button class="btn btn-green" onclick="showLeaderboardOnly()">
+                🏆 Xếp Hạng
+            </button>
+        </div>
+
+        <div style="margin-top: 20px; font-size: 22px; text-shadow: 2px 2px 4px #000; background: rgba(0,0,0,0.5); padding: 15px; border-radius: 10px; border: 1px solid #555;">
+            <div style="margin-bottom: 8px; color: #fff;">
+                🏆 Top Đơn: <span id="topSingleDisplay" style="color: #FFD700; font-weight: bold;">Đang tải...</span>
+            </div>
+            <div style=" color: #fff;">
+                ⚔️ Top PvP: <span id="topPvpDisplay" style="color: #00FFFF; font-weight: bold;">Đang tải...</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="lobbyScreen" class="ui-layer hidden">
+        <div class="title" style="font-size: 50px; margin-bottom: 20px;">PHÒNG SOLO</div>
+        <div class="lobby-panel">
+            <div id="lobbyMain">
+                <input type="text" id="lobbyNameInput" placeholder="NHẬP TÊN CHIẾN BINH" maxlength="12">
+                
+                <button class="btn btn-blue" onclick="createRoom()" style="width: 100%;">
+                    ⚡ TẠO PHÒNG MỚI
+                </button>
+                <div class="divider">HOẶC</div>
+                <div class="input-group">
+                    <input type="number" id="roomInput" class="room-input" placeholder="MÃ SỐ">
+                    <button class="btn btn-purple" onclick="joinRoom()" style="min-width: 90px; margin: 0;">
+                        VÀO
+                    </button>
+                </div>
+            </div>
+            <div id="lobbyWait" class="hidden">
+                <div class="subtitle" style="font-size: 24px; margin-bottom: 5px;">MÃ PHÒNG CỦA BẠN</div>
+                <div id="createdRoomCode" class="room-code-box">----</div>
+                <div style="color: #2ed573; animation: float 1s infinite; font-size: 24px;">
+                    📡 Đang chờ đối thủ...
+                </div>
+            </div>
+            <div id="lobbyStatus" style="color: #FFD700; height: 25px; font-size: 20px; font-style: italic;"></div>
+        </div>
+        <button class="btn btn-back" onclick="location.reload()">⬅ QUAY LẠI MENU</button>
+    </div>
+    <div id="shopScreen" class="ui-layer hidden">
+        <div class="title" style="font-size: 50px;">KHO TRANG BỊ</div>
+        <div class="shop-container">
+            <div class="shop-section">
+                <div style="color: #FFD700; font-size: 28px;">CHỌN SKIN</div>
+                <div class="shop-grid" id="skinGrid"></div>
+            </div>
+            <div class="shop-section">
+                <div style="color: #00FFFF; font-size: 28px;">BỐI CẢNH</div>
+                <div class="shop-grid" id="bgGrid"></div>
+            </div>
+        </div>
+        <button class="btn btn-green" onclick="closeShop()">XÁC NHẬN</button>
+    </div>
+
+    <div id="gameOverScreen" class="ui-layer hidden">
+        <div class="gameover-panel">
+            <div class="go-title" id="goTitle">GAME OVER</div>
+            <div class="score-display">
+                ĐIỂM: <span id="finalScore">0</span>
+            </div>
+            <div class="best-score" id="bestScoreText">
+                Kỷ lục máy: <span id="bestScoreEnd">0</span>
+            </div>
+            <div id="onlineResultBox" class="online-result hidden">
+                <div style="font-size: 20px; color: #aaa;">ĐỐI THỦ (<span id="endRemoteName">...</span>): <span id="finalRemoteScore" style="color: #00FFFF; font-weight: bold;">0</span></div>
+                <div id="winnerText" style="font-size: 35px; font-weight: bold; margin-top: 5px;"></div>
+                <div style="color: #2ed573; font-size: 16px;">✅ Đã tự động lưu điểm!</div>
+            </div>
+            <div id="submitForm" class="input-section">
+                <input type="text" id="playerName" class="name-input" placeholder="NHẬP TÊN BẠN" maxlength="12">
+                <button class="btn btn-green" onclick="submitScore('single')" style="width: 80%;">
+                    💾 LƯU ĐIỂM & XEM TOP
+                </button>
+            </div>
+            <div id="submitSuccess" class="hidden" style="color: #2ed573; font-size: 24px; margin: 10px 0;">
+                ✅ Đã lưu thành công!
+            </div>
+            <div class="action-buttons">
+                <button class="btn btn-red" onclick="resetGame()">↻ CHƠI LẠI</button>
+                <button class="btn btn-blue" onclick="goHome()">🏠 MENU</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="leaderboardScreen" class="ui-layer hidden" style="background: rgba(0,0,0,0.95); z-index: 50;">
+        <div class="title" style="font-size: 40px;">BẢNG XẾP HẠNG</div>
+        
+        <div class="tab-container">
+            <button class="tab-btn active" id="tabSingle" onclick="switchTab('single')">CHƠI ĐƠN</button>
+            <button class="tab-btn" id="tabPvP" onclick="switchTab('pvp')">PVP ĐÔI</button>
+        </div>
+
+        <div class="leaderboard-box">
+            <table id="lbTable">
+                <thead><tr><th>#</th><th>TÊN</th><th>ĐIỂM</th></tr></thead>
+                <tbody id="lbBody"><tr><td colspan="3">Đang tải...</td></tr></tbody>
+            </table>
+        </div>
+        <button class="btn btn-red" onclick="closeLeaderboard()">ĐÓNG</button>
+    </div>
+<script>
+// --- [QUAN TRỌNG] LINK API ---
+const API_URL = "https://script.google.com/macros/s/AKfycbx0wKxxxrJ3sQ5IjP8D13hdybk25RDQpmRo6rhBL4YPlT0RHXhxSTFZrdSyufH_nFE4/exec";
+
+// --- DỮ LIỆU GAME ---
+const SKINS = [
+    { id: 'classic', name: 'Classic', color: '#FFD700', imgSrc: 'https://cdn-icons-png.flaticon.com/512/616/616408.png' },
+    { id: 'ninja', name: 'Ninja', color: '#333', imgSrc: 'https://cdn-icons-png.flaticon.com/512/616/616430.png' },
+    { id: 'ufo', name: 'UFO Cat', color: '#00FF00', imgSrc: 'https://cdn-icons-png.flaticon.com/512/3069/3069172.png' },
+    { id: 'rocket', name: 'Rocket', color: 'white', imgSrc: null }
+];
+
+const BACKGROUNDS = [
+    { id: 'deep', name: 'Deep Space', top: '#0d0e15', bottom: '#0d0e15', stars: true },
+    { id: 'sunset', name: 'Sunset', top: '#2c3e50', bottom: '#fd746c', stars: true },
+    { id: 'forest', name: 'Midnight', top: '#000000', bottom: '#434343', stars: true },
+    { id: 'ocean', name: 'Ocean', top: '#1a2a6c', bottom: '#b21f1f', stars: false }
+];
+
+const loadedImages = {};
+function preloadSkins() {
+    SKINS.forEach(skin => {
+        if (skin.imgSrc) {
+            const img = new Image(); img.src = skin.imgSrc; loadedImages[skin.id] = img;
+        }
+    });
+}
+preloadSkins();
+
+// --- API LOGIC (GOOGLE SHEET) ---
+let userIP = "unknown";
+fetch('https://api.ipify.org?format=json').then(r => r.json()).then(d => userIP = d.ip).catch(e => console.log("IP Error"));
+
+function showLoading(show) { document.getElementById('loadingMsg').style.display = show ? 'block' : 'none'; }
+
+// [CẬP NHẬT] Hàm gửi điểm thông minh: Tự ghép tên và tỉ số
+function submitScore(mode = 'single', isAuto = false) {
+    let name = "";
+    let scoreToSend = score; // Mặc định là điểm của mình
+
+    if (mode === 'single') {
+        // Chế độ đơn: Lấy tên từ ô input
+        name = document.getElementById('playerName').value.trim() || "Ẩn danh";
+        const btn = document.querySelector('#submitForm button');
+        if(btn) { btn.disabled = true; btn.innerText = "Đang gửi..."; }
+    } else {
+        // Chế độ PvP: Tự động ghép tên kèm tỉ số
+        // Logic: Luôn để người điểm cao đứng trước để vinh danh
+        if (score >= remoteScore) {
+            // Mình thắng hoặc hòa
+            name = `${myName} (${score}) ⚔️ ${remoteName} (${remoteScore})`;
+            scoreToSend = score; 
+        } else {
+            // Đối thủ thắng -> Đưa tên đối thủ lên trước
+            name = `${remoteName} (${remoteScore}) ⚔️ ${myName} (${score})`;
+            scoreToSend = remoteScore; // Gửi điểm cao nhất để BXH xếp hạng trận đấu này cao hơn
+        }
+    }
+
+    if (!isAuto) showLoading(true);
+
+    fetch(API_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        // Gửi scoreToSend thay vì score gốc
+        body: JSON.stringify({ name: name, score: scoreToSend, ip: userIP, mode: mode }) 
+    }).then(() => {
+        if (!isAuto) {
+            showLoading(false);
+            document.getElementById('submitForm').classList.add('hidden');
+            document.getElementById('submitSuccess').classList.remove('hidden');
+            setTimeout(() => openLeaderboard(mode), 1000); 
+        }
+    }).catch(err => {
+        console.error(err);
+        if(!isAuto) {
+            showLoading(false);
+            alert("Lỗi kết nối! Hãy thử lại.");
+            const btn = document.querySelector('#submitForm button');
+            if(btn) { btn.disabled = false; btn.innerText = "THỬ LẠI"; }
+        }
+    });
+}
+
+// [THÊM MỚI] Hàm chuyển Tab
+function switchTab(mode) {
+    document.getElementById('tabSingle').className = mode === 'single' ? 'tab-btn active' : 'tab-btn';
+    document.getElementById('tabPvP').className = mode === 'pvp' ? 'tab-btn active' : 'tab-btn';
+    openLeaderboard(mode);
+}
+
+// [SỬA] Hàm lấy BXH theo mode
+function openLeaderboard(mode = 'single') {
+    document.getElementById('leaderboardScreen').classList.remove('hidden');
+    
+    // Set active tab đúng với mode gọi
+    document.getElementById('tabSingle').className = mode === 'single' ? 'tab-btn active' : 'tab-btn';
+    document.getElementById('tabPvP').className = mode === 'pvp' ? 'tab-btn active' : 'tab-btn';
+    // [THÊM MỚI] Đổi tiêu đề cột tùy theo chế độ
+    const tableHeader = document.querySelector('#lbTable thead tr th:nth-child(2)');
+    if (mode === 'pvp') {
+        tableHeader.innerText = "CẶP ĐẤU (P1 vs P2)";
+    } else {
+        tableHeader.innerText = "TÊN NGƯỜI CHƠI";
+    }
+    const tbody = document.getElementById('lbBody');
+    tbody.innerHTML = '<tr><td colspan="3">Đang tải dữ liệu...</td></tr>';
+
+    fetch(API_URL + "?mode=" + mode) 
+        .then(response => response.json())
+        .then(data => {
+            tbody.innerHTML = '';
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3">Chưa có dữ liệu</td></tr>';
+                return;
+            }
+            data.forEach((item, index) => {
+                let row = `<tr>
+                    <td>${index + 1}</td>
+                    <td style="color:${index === 0 ? '#FFD700' : 'white'}">${item.name}</td>
+                    <td>${item.score}</td>
+                </tr>`;
+                tbody.innerHTML += row;
+            });
+        })
+        .catch(err => {
+            console.error(err);
+            tbody.innerHTML = '<tr><td colspan="3">Lỗi tải BXH (CORS/Mạng)</td></tr>';
+        });
+}
+function closeLeaderboard() { 
+    document.getElementById('leaderboardScreen').classList.add('hidden'); 
+    loadTopRecords();
+}
+function showLeaderboardOnly() { openLeaderboard('single'); }
+// --- HÀM LẤY TOP 1 SERVER HIỂN THỊ MENU ---
+function loadTopRecords() {
+    const fetchTop = (mode, elId) => {
+        fetch(API_URL + "?mode=" + mode).then(res => res.json()).then(data => {
+            const el = document.getElementById(elId);
+            if (el) {
+                if (data && data.length > 0) {
+                    let name = data[0].name;
+                    if(mode === 'pvp' && name.length > 25) name = name.substring(0, 25) + "...";
+                    el.innerText = mode==='single' ? `${name} - ${data[0].score}` : `${name} (${data[0].score})`;
+                } else { el.innerText = "Chưa có"; }
+            }
+        }).catch(() => { const el = document.getElementById(elId); if(el) el.innerText = "Lỗi tải"; });
+    };
+    fetchTop('single', 'topSingleDisplay');
+    fetchTop('pvp', 'topPvpDisplay');
+}
+// --- LOGIC GAME & CẤU HÌNH ---
+let userSettings = JSON.parse(localStorage.getItem('astroCatSettings')) || { skin: 'classic', bg: 'deep' };
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let frames = 0;
+let score = 0;
+let level = 1;
+let bestScore = localStorage.getItem('astroCatBestScore') || 0;
+let gameSpeed = 3;
+let isGameOver = false;
+let isPlaying = false;
+let isPaused = false;
+let isMuted = false;
+let animationId; 
+let lastFrameTime = 0;
+const fpsInterval = 1000 / 60;
+const PIPE_DIST_DESKTOP = 250;
+const PIPE_DIST_MOBILE = 200;
+let pipeDistance = PIPE_DIST_DESKTOP;
+const MAX_Y_DIFF = 180; 
+
+// [SỬA] BIẾN DÙNG CHO ONLINE
+let gameMode = 'single'; // 'single' hoặc 'online'
+let peer = null;
+let isHost = false;
+let conn = null;
+let remoteScore = 0;
+let remoteDead = false;
+let myName = "Player"; // [THÊM] Tên người chơi
+let remoteName = "Đối thủ"; // [THÊM] Tên đối thủ
+
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    pipeDistance = window.innerWidth < 600 ? PIPE_DIST_MOBILE : PIPE_DIST_DESKTOP;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+const AudioContext = window.AudioContext || window.webkitAudioContext;
+const audioCtx = new AudioContext();
+
+const Sound = {
+    playTone: (freq, type, duration, vol = 0.1) => {
+        if (isMuted) return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    },
+    jump: () => Sound.playTone(400, 'triangle', 0.1),
+    score: () => Sound.playTone(1000, 'sine', 0.1, 0.2),
+    hit: () => { if (isMuted) return; Sound.playTone(150, 'sawtooth', 0.3, 0.3); },
+    powerUp: () => { if (isMuted) return; Sound.playTone(600, 'square', 0.1); },
+    levelUp: () => { if (isMuted) return; Sound.playTone(500, 'sine', 0.1); setTimeout(() => Sound.playTone(900, 'sine', 0.4), 200); },
+    // [MỚI] Âm thanh thắng trận
+    win: () => { if(!isMuted) { Sound.playTone(600, 'square', 0.1); setTimeout(()=>Sound.playTone(800, 'square', 0.2), 150); } }
+};
+
+document.getElementById('muteBtn').addEventListener('click', () => {
+    isMuted = !isMuted;
+    document.getElementById('muteBtn').innerText = isMuted ? '🔇' : '🔊';
+});
+
+document.getElementById('pauseBtn').addEventListener('click', togglePause);
+function togglePause() {
+    if (!isPlaying || isGameOver) return;
+    isPaused = !isPaused;
+    document.getElementById('pauseBtn').innerText = isPaused ? '▶️' : '⏸️';
+    if (!isPaused) loop();
+}
+
+// --- LOGIC KẾT NỐI ONLINE (PeerJS) [ĐÃ SỬA LỖI GUEST KHÔNG CHƠI ĐƯỢC] ---
+function initPeer() {
+    const id = Math.floor(1000 + Math.random() * 9000); 
+    return new Peer('astro_' + id);
+}
+
+function showLobby() {
+    document.getElementById('startScreen').classList.add('hidden');
+    document.getElementById('lobbyScreen').classList.remove('hidden');
+    document.getElementById('lobbyMain').classList.remove('hidden');
+    document.getElementById('lobbyWait').classList.add('hidden');
+    document.getElementById('lobbyNameInput').value = localStorage.getItem('lastPlayerName') || "";
+}
+
+function checkName() {
+    const name = document.getElementById('lobbyNameInput').value.trim();
+    if (name.length < 2) {
+        alert("Vui lòng nhập tên (ít nhất 2 ký tự)!");
+        return false;
+    }
+    myName = name;
+    localStorage.setItem('lastPlayerName', name);
+    return true;
+}
+
+function createRoom() {
+    if(!checkName()) return;
+    document.getElementById('lobbyStatus').innerText = "Đang tạo...";
+    peer = initPeer();
+    
+    peer.on('open', (id) => {
+        document.getElementById('lobbyMain').classList.add('hidden');
+        document.getElementById('lobbyWait').classList.remove('hidden');
+        document.getElementById('createdRoomCode').innerText = id.split('_')[1];
+        document.getElementById('lobbyStatus').innerText = "";
+    });
+
+    // Host nhận kết nối -> Gọi setupConnection với tham số true (là Host)
+    peer.on('connection', (c) => { setupConnection(c, true); });
+    peer.on('error', (err) => alert("Lỗi: " + err));
+}
+
+function joinRoom() {
+    if(!checkName()) return;
+    const code = document.getElementById('roomInput').value;
+    if(!code) return alert("Vui lòng nhập mã!");
+    document.getElementById('lobbyStatus').innerText = "Đang kết nối...";
+    
+    peer = new Peer();
+    peer.on('open', () => {
+        const c = peer.connect('astro_' + code);
+        // Guest mở kết nối -> Gọi setupConnection với tham số false (là Guest)
+        c.on('open', () => setupConnection(c, false));
+        setTimeout(() => { if(!conn && !isPlaying) alert("Không tìm thấy phòng!"); }, 5000);
+    });
+}
+
+// [QUAN TRỌNG] HÀM KẾT NỐI ĐÃ ĐƯỢC VIẾT LẠI LOGIC
+function setupConnection(connection, hostState) {
+    conn = connection;
+    gameMode = 'online';
+    isHost = hostState; // [QUAN TRỌNG] Lưu trạng thái ai là chủ phòng
+    
+    // Ẩn Lobby -> Vào Game
+    document.getElementById('lobbyScreen').classList.add('hidden');
+    document.getElementById('onlineHud').style.display = 'block';
+    
+    remoteScore = 0; remoteDead = false;
+    
+    conn.on('data', (data) => {
+        if(data.type === 'hello') {
+            remoteName = data.name || "Khách";
+            updateOnlineHudUI();
+            conn.send({ type: 'welcome', name: myName });
+            startGame('online'); 
+        }
+        else if(data.type === 'welcome') {
+            remoteName = data.name || "Chủ phòng";
+            updateOnlineHudUI();
+            startGame('online');
+        }
+        else if(data.type === 'update') {
+            remoteScore = data.score;
+            remoteDead = data.isDead;
+            updateOnlineHudUI();
+            if(isGameOver && remoteDead) {
+                setTimeout(finishOnlineGame, 1000);
+            }
+        }
+    });
+
+    if (isHost) {
+        document.getElementById('onlineStatus').innerText = "Đang chờ người vào...";
+        document.getElementById('onlineStatus').style.color = "#FFD700";
+    } else {
+        document.getElementById('onlineStatus').innerText = "Đang kết nối...";
+        setTimeout(() => { conn.send({ type: 'hello', name: myName }); }, 500);
+    }
+}
+
+function sendData() {
+    if(conn && conn.open) {
+        conn.send({ type: 'update', score: score, isDead: isGameOver });
+    }
+}
+
+function updateOnlineHudUI() {
+    // [SỬA] Hiển thị tên thật
+    document.getElementById('localNameDisplay').innerText = myName;
+    document.getElementById('remoteNameDisplay').innerText = remoteName;
+
+    document.getElementById('localScoreOnline').innerText = score;
+    document.getElementById('remoteScoreOnline').innerText = remoteScore;
+    const st = document.getElementById('onlineStatus');
+    if(remoteDead) {
+        st.innerText = `${remoteName}: ĐÃ CHẾT ☠️`;
+        st.style.color = "#ff4757";
+    } else {
+        st.innerText = "Đang thi đấu...";
+        st.style.color = "#2ed573";
+    }
+}
+
+// --- LOGIC SHOP ---
+function openShop() {
+    document.getElementById('startScreen').classList.add('hidden');
+    document.getElementById('shopScreen').classList.remove('hidden');
+    renderShop();
+}
+
+function closeShop() {
+    localStorage.setItem('astroCatSettings', JSON.stringify(userSettings));
+    document.getElementById('shopScreen').classList.add('hidden');
+    document.getElementById('startScreen').classList.remove('hidden');
+    background.init(); drawStaticBackground();
+}
+
+function renderShop() {
+    const skinGrid = document.getElementById('skinGrid');
+    const bgGrid = document.getElementById('bgGrid');
+    skinGrid.innerHTML = '';
+    bgGrid.innerHTML = '';
+
+    SKINS.forEach(s => {
+        let el = document.createElement('div');
+        el.className = `shop-item ${userSettings.skin === s.id ? 'selected' : ''}`;
+        let iconHtml;
+        if (s.imgSrc) {
+            iconHtml = `<img src="${s.imgSrc}" class="shop-img-preview" alt="${s.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+                        <div class="shop-icon" style="color:${s.color}; display:none;">🐱</div>`;
+        } else {
+            iconHtml = `<div class="shop-icon" style="color:${s.color}">🐱</div>`;
+        }
+        el.innerHTML = `${iconHtml}<div class="shop-label">${s.name}</div>`;
+        el.onclick = () => { userSettings.skin = s.id; renderShop(); };
+        skinGrid.appendChild(el);
+    });
+
+    BACKGROUNDS.forEach(b => {
+        let el = document.createElement('div');
+        el.className = `shop-item ${userSettings.bg === b.id ? 'selected' : ''}`;
+        el.innerHTML = `<div class="shop-icon" style="background: linear-gradient(to bottom, ${b.top}, ${b.bottom}); width:30px; height:30px; border-radius:50%;"></div><div class="shop-label">${b.name}</div>`;
+        el.onclick = () => { userSettings.bg = b.id; renderShop(); };
+        bgGrid.appendChild(el);
+    });
+}
+
+// --- LOGIC GAME & CẬP NHẬT NHÂN VẬT ---
+const cat = {
+    x: 50, y: 150, radius: 15, velocity: 0, gravity: 0.25, jumpStrength: 5.5,
+    rotation: 0, isInvincible: false, invincibleTimer: 0,
+    
+    draw: function() {
+        if(isGameOver && gameMode === 'online') ctx.globalAlpha = 0.5; // Làm mờ khi chết online
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        let targetRotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (this.velocity * 0.1)));
+        if (isGameOver) this.rotation += 0.2; 
+        else this.rotation = targetRotation;
+        ctx.rotate(this.rotation);
+
+        let skinId = userSettings.skin;
+        let skinData = SKINS.find(s => s.id === skinId) || SKINS[0];
+        let img = loadedImages[skinId];
+
+        if (img && img.complete && img.naturalWidth !== 0) {
+            let size = this.radius * 2.8; 
+            ctx.drawImage(img, -size/2, -size/2, size, size);
+            if (this.isInvincible) {
+                ctx.beginPath(); ctx.arc(0, 0, this.radius + 5, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(0, 255, 255, ${Math.random() * 0.8})`; ctx.lineWidth = 3; ctx.stroke();
+            }
+        } 
+        else {
+            let mainColor = skinData.color;
+            ctx.beginPath(); ctx.moveTo(-10, 5); ctx.lineTo(-25 - (Math.random()*5), 0); ctx.lineTo(-10, -5); ctx.fillStyle = '#ff4757'; ctx.fill();
+            if (this.isInvincible) { ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2); ctx.strokeStyle = `rgba(0, 255, 255, ${Math.random() * 0.8})`; ctx.lineWidth = 3; ctx.stroke(); }
+            ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fillStyle = mainColor; ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.ellipse(5, -5, 8, 5, 0, 0, Math.PI * 2); ctx.fillStyle = '#87CEEB'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(-5, -12); ctx.lineTo(0, -22); ctx.lineTo(5, -12); ctx.fillStyle = mainColor; ctx.fill(); ctx.stroke();
+        }
+        ctx.restore();
+        ctx.globalAlpha = 1;
+    },
+
+    update: function() {
+        if(isGameOver) return; // Dừng cập nhật vật lý khi chết
+        this.velocity += this.gravity;
+        this.y += this.velocity;
+        if (this.y + this.radius >= canvas.height || this.y - this.radius <= 0) {
+            if (!this.isInvincible) gameOver(); 
+            else { this.velocity = -this.velocity * 0.8; this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y)); }
+        }
+        if (this.isInvincible) { this.invincibleTimer--; if (this.invincibleTimer <= 0) this.isInvincible = false; }
+    },
+    flap: function() {
+        if(isGameOver) return;
+        this.velocity = -this.jumpStrength;
+        createParticles(this.x, this.y + 10, '#fff', 5);
+        Sound.jump();
+    }
+};
+
+const pipes = {
+    items: [], w: 60, gap: 170, 
+    draw: function() {
+        for (let i = 0; i < this.items.length; i++) {
+            let p = this.items[i];
+            let colorStops, borderColor;
+            if (p.type === 1) { colorStops = ['#c0392b', '#e74c3c', '#c0392b']; borderColor = '#922b21'; } 
+            else if (p.type === 2) { colorStops = ['#27ae60', '#2ecc71', '#27ae60']; borderColor = '#1e8449'; } 
+            else { colorStops = ['#2c3e50', '#95a5a6', '#2c3e50']; borderColor = '#000'; }
+
+            let grad = ctx.createLinearGradient(p.x, 0, p.x + this.w, 0);
+            grad.addColorStop(0, colorStops[0]); grad.addColorStop(0.5, colorStops[1]); grad.addColorStop(1, colorStops[2]);
+            ctx.fillStyle = grad; ctx.strokeStyle = borderColor; ctx.lineWidth = 2;
+            let shake = (p.type === 1) ? (Math.random() * 2 - 1) : 0;
+
+            const drawTube = (y, height) => {
+                ctx.fillRect(p.x + shake, y, this.w, height); ctx.strokeRect(p.x + shake, y, this.w, height);
+                if (p.type === 1) { 
+                    ctx.save(); ctx.beginPath(); ctx.rect(p.x + shake, y, this.w, height); ctx.clip();
+                    ctx.strokeStyle = "rgba(255, 255, 0, 0.3)"; ctx.lineWidth = 5;
+                    for (let k = -20; k < height + this.w; k += 20) { ctx.moveTo(p.x + shake - 10, y + k); ctx.lineTo(p.x + shake + this.w + 10, y + k - 20); }
+                    ctx.stroke(); ctx.restore(); ctx.lineWidth = 2; ctx.strokeStyle = borderColor;
+                } else if (p.type === 2) { 
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+                    for(let b=0; b<3; b++) { ctx.beginPath(); ctx.arc(p.x + 10 + Math.random() * 40, y + Math.random() * height, 3, 0, Math.PI*2); ctx.fill(); }
+                    ctx.fillStyle = grad; 
+                }
+            };
+            drawTube(0, p.top);
+            ctx.fillStyle = grad; ctx.fillRect(p.x - 4 + shake, p.top - 20, this.w + 8, 20); ctx.strokeRect(p.x - 4 + shake, p.top - 20, this.w + 8, 20);
+            drawTube(canvas.height - p.bottom, p.bottom);
+            ctx.fillStyle = grad; ctx.fillRect(p.x - 4 + shake, canvas.height - p.bottom, this.w + 8, 20); ctx.strokeRect(p.x - 4 + shake, canvas.height - p.bottom, this.w + 8, 20);
+            if (p.type === 1) { ctx.fillStyle = "#FFD700"; ctx.font = "bold 20px Arial"; ctx.fillText("!", p.x + 25 + shake, p.top - 35); ctx.fillText("!", p.x + 25 + shake, canvas.height - p.bottom + 45); }
+        }
+    },
+    update: function() {
+        let lastPipe = this.items[this.items.length - 1];
+        if (lastPipe) {
+            let distFromRight = canvas.width - (lastPipe.x + this.w);
+            if (distFromRight >= pipeDistance) this.addPipe();
+        } else { this.addPipe(); }
+
+        for (let i = 0; i < this.items.length; i++) {
+            let p = this.items[i];
+            
+            // [SỬA] Nếu Online và mình chết, nhưng đối thủ chưa -> Vẫn cho ống chạy để xem
+            if(!isGameOver || (gameMode === 'online' && !remoteDead)) {
+                p.x -= gameSpeed;
+            }
+
+            if (p.type === 2) {
+                p.top += p.moveDir * (1 + level * 0.2);
+                if (Math.abs(p.top - p.initialTop) > 60) p.moveDir *= -1;
+                p.bottom = canvas.height - this.gap - p.top;
+            }
+            if (!cat.isInvincible && !isGameOver) { // Chỉ check va chạm khi còn sống
+                let pLeft = p.x - 4; let pRight = p.x + this.w + 4;
+                if (cat.x + cat.radius > pLeft && cat.x - cat.radius < pRight) {
+                    if (cat.y - cat.radius < p.top || cat.y + cat.radius > canvas.height - p.bottom) gameOver();
+                }
+            }
+            if (p.x + this.w < cat.x && !p.passed && !isGameOver) {
+                score++; p.passed = true; Sound.score(); document.getElementById('scoreHud').innerText = score;
+                checkLevelUp();
+                // [MỚI] Gửi điểm nếu đang Online
+                if(gameMode === 'online') { sendData(); updateOnlineHudUI(); }
+            }
+            if (p.x + this.w + 10 < 0) { this.items.shift(); i--; }
+        }
+    },
+    addPipe: function(overrideX) {
+        let xPos = overrideX || canvas.width;
+        let currentGap = Math.max(130, 170 - (level * 5));
+        this.gap = currentGap;
+        let minPipeHeight = 50;
+        let maxAvailableY = canvas.height - this.gap - minPipeHeight;
+        let topHeight;
+        let lastPipe = this.items[this.items.length - 1];
+        if (lastPipe) {
+            let prevTop = lastPipe.initialTop;
+            let minSafe = Math.max(minPipeHeight, prevTop - MAX_Y_DIFF);
+            let maxSafe = Math.min(maxAvailableY, prevTop + MAX_Y_DIFF);
+            topHeight = Math.floor(Math.random() * (maxSafe - minSafe + 1)) + minSafe;
+        } else {
+            let startMin = canvas.height/2 - 100;
+            let startMax = canvas.height/2 + 50;
+            topHeight = Math.floor(Math.random() * (startMax - startMin + 1)) + startMin;
+        }
+        let type = 0;
+        if (score >= 20) {
+            let rand = Math.random();
+            if (score >= 80) type = rand > 0.6 ? 2 : (rand > 0.3 ? 1 : 0);
+            else if (score >= 40) type = rand > 0.5 ? 2 : 0;
+            else type = rand > 0.6 ? 1 : 0;
+        }
+        this.items.push({
+            x: xPos, top: topHeight, bottom: canvas.height - this.gap - topHeight,
+            passed: false, type: type, moveDir: Math.random() > 0.5 ? 1 : -1, initialTop: topHeight
+        });
+        if (Math.random() < 0.3) spawnPowerUp(xPos + 30, topHeight + this.gap / 2);
+    }
+};
+
+function checkLevelUp() {
+    let newLevel = 1;
+    if (score >= 100) newLevel = 5;
+    else if (score >= 75) newLevel = 4;
+    else if (score >= 50) newLevel = 3;
+    else if (score >= 20) newLevel = 2;
+    if (newLevel > level) {
+        level = newLevel; Sound.levelUp();
+        document.getElementById('levelHud').innerText = 'LVL ' + level;
+        let msg = document.getElementById('levelUpMsg');
+        msg.style.opacity = 1; setTimeout(() => { msg.style.opacity = 0; }, 2000);
+        gameSpeed = 3 + (level - 1) * 0.6; cat.gravity = 0.25 + (level - 1) * 0.02;
+    }
+}
+
+const background = {
+    stars: [],
+    init: function() { 
+        this.stars = []; 
+        let currentBg = BACKGROUNDS.find(b => b.id === userSettings.bg) || BACKGROUNDS[0];
+        if (!currentBg.stars) return;
+        for (let i = 0; i < 100; i++) this.stars.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, size: Math.random() * 2, speed: Math.random() * 2 + 0.5 }); 
+    },
+    draw: function() { 
+        let currentBg = BACKGROUNDS.find(b => b.id === userSettings.bg) || BACKGROUNDS[0];
+        let grd = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        grd.addColorStop(0, currentBg.top); grd.addColorStop(1, currentBg.bottom);
+        ctx.fillStyle = grd; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        if (currentBg.stars) { ctx.fillStyle = '#fff'; for (let s of this.stars) { ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2); ctx.fill(); } }
+    },
+    update: function() { for (let s of this.stars) { s.x -= s.speed * (gameSpeed / 2); if (s.x < 0) { s.x = canvas.width; s.y = Math.random() * canvas.height; } } }
+};
+
+let powerUps = [];
+function spawnPowerUp(x, y) { const type = Math.random() > 0.5 ? 'SHIELD' : 'STAR'; powerUps.push({ x, y, type, active: true }); }
+function updatePowerUps() {
+    for (let i = 0; i < powerUps.length; i++) {
+        let p = powerUps[i]; 
+        if(!isGameOver) p.x -= gameSpeed; // Chỉ di chuyển khi còn sống
+        if (p.active) {
+            ctx.beginPath(); ctx.arc(p.x, p.y, 15, 0, Math.PI*2);
+            if (p.type === 'SHIELD') { ctx.fillStyle = '#00FFFF'; ctx.fillText("🛡️", p.x - 10, p.y + 5); } else { ctx.fillStyle = '#FFFF00'; ctx.fillText("⭐", p.x - 10, p.y + 5); }
+            ctx.globalAlpha = 0.5 + Math.sin(frames * 0.1) * 0.4; ctx.fill(); ctx.globalAlpha = 1;
+            if (Math.hypot(cat.x - p.x, cat.y - p.y) < cat.radius + 15 && !isGameOver) {
+                p.active = false; Sound.powerUp(); createParticles(p.x, p.y, p.type === 'SHIELD' ? '#00FFFF' : '#FFFF00', 10);
+                if (p.type === 'SHIELD') { cat.isInvincible = true; cat.invincibleTimer = 300; } else { score += 5; document.getElementById('scoreHud').innerText = score; }
+            }
+        }
+    }
+    powerUps = powerUps.filter(p => p.x > -20 && p.active);
+}
+
+let particles = [];
+class Particle {
+    constructor(x, y, color) { this.x = x; this.y = y; this.size = Math.random() * 5 + 2; this.speedX = Math.random() * 4 - 2; this.speedY = Math.random() * 4 - 2; this.color = color; this.life = 100; }
+    update() { this.x += this.speedX; this.y += this.speedY; this.life -= 2; this.size *= 0.95; }
+    draw() { ctx.fillStyle = this.color; ctx.globalAlpha = this.life / 100; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+}
+function createParticles(x, y, color, count) { for(let i=0; i<count; i++) particles.push(new Particle(x, y, color)); }
+function handleParticles() { for(let i=0; i<particles.length; i++) { particles[i].update(); particles[i].draw(); if(particles[i].life <= 0) { particles.splice(i, 1); i--; } } }
+
+function initGame() {
+    cat.y = 150; cat.velocity = 0; cat.rotation = 0; cat.isInvincible = false;
+    score = 0; level = 1; frames = 0; isGameOver = false; isPaused = false;
+    document.getElementById('scoreHud').innerText = score; document.getElementById('levelHud').innerText = 'LVL 1';
+    gameSpeed = 3; cat.gravity = 0.25;
+    powerUps = []; particles = []; background.init(); pipes.items = [];
+    let startX = 300; let currentX = startX;
+    while (currentX < canvas.width + pipeDistance) { pipes.addPipe(currentX); currentX += pipeDistance; }
+    
+    // UI RESET CHO ONLINE
+    document.getElementById('onlineResultBox').style.display = 'none';
+    document.getElementById('goTitle').innerText = "GAME OVER";
+    document.getElementById('goTitle').style.color = "#ff4757";
+    document.getElementById('finalScore').innerText = "0";
+}
+
+function loop(timestamp) {
+    if (!timestamp) timestamp = performance.now(); // Lấy mốc thời gian hiện tại
+    
+    // 1. Luôn gọi requestAnimationFrame đầu tiên để duy trì vòng lặp dựa trên các điều kiện cũ
+    if (!isGameOver) {
+        animationId = requestAnimationFrame(loop);
+    } else if (gameMode === 'online' && !remoteDead) {
+        animationId = requestAnimationFrame(loop); 
+    } else if (cat.y < canvas.height + 50 && gameMode !== 'online') { 
+        animationId = requestAnimationFrame(loop); 
+    } else {
+        return; // Dừng hẳn vòng lặp nếu rơi khỏi màn hình / kết thúc online
+    }
+
+    if (isPaused) return;
+
+    // 2. Tính toán thời gian trôi qua
+    let elapsed = timestamp - lastFrameTime;
+
+    // 3. NẾU đủ thời gian của 1 frame ở 60 FPS (khoảng 16.67ms) thì mới vẽ hình và update vật lý
+    if (elapsed >= fpsInterval) {
+        // Cập nhật lại thời gian của frame cuối, bù trừ phần ng sai số
+        lastFrameTime = timestamp - (elapsed % fpsInterval);
+
+        // --- TOÀN BỘ LOGIC GAME CŨ GIỮ NGUYÊN ---
+        ctx.clearRect(0,0, canvas.width, canvas.height);
+        background.update(); background.draw();
+        pipes.update(); pipes.draw();
+        updatePowerUps();
+        cat.update(); cat.draw();
+        handleParticles();
+        
+        // Logic chờ đối thủ: Hiển thị lớp phủ nếu mình chết, đối thủ sống
+        if(isGameOver && gameMode === 'online') {
+            if(!remoteDead) {
+                // Vẽ lớp phủ tối
+                ctx.fillStyle = "rgba(0,0,0,0.6)"; 
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Vẽ text thông báo
+                ctx.fillStyle = "#FFD700"; 
+                ctx.font = "30px 'VT323', monospace"; 
+                ctx.textAlign = "center";
+                ctx.fillText("BẠN ĐÃ CHẾT!", canvas.width/2, canvas.height/2 - 40);
+                
+                ctx.fillStyle = "#fff"; 
+                ctx.font = "24px 'VT323', monospace";
+                ctx.fillText("Đang xem " + remoteName + " chơi...", canvas.width/2, canvas.height/2);
+                ctx.fillText("Điểm đối thủ: " + remoteScore, canvas.width/2, canvas.height/2 + 30);
+            }
+        } else {
+            frames++;
+        }
+
+        // Hiệu ứng rơi khi chết (chỉ dùng cho Single)
+        if (isGameOver && cat.y < canvas.height + 50 && gameMode !== 'online') { 
+            ctx.fillStyle = '#0d0e15'; cat.y += 10; cat.rotation += 0.5; cat.draw(); 
+        }
+    }
+}
+
+function startGame(mode) {
+    // [QUAN TRỌNG] Cập nhật chế độ chơi dựa trên tham số truyền vào
+    if (mode) gameMode = mode; 
+
+    document.getElementById('startScreen').classList.add('hidden'); 
+    
+    // Xử lý hiển thị HUD (Điểm số) tùy theo chế độ
+    if (gameMode === 'single') {
+        document.getElementById('scoreHud').style.display = 'block'; 
+        document.getElementById('levelHud').style.display = 'block';
+        document.getElementById('onlineHud').style.display = 'none'; // Ẩn HUD Online
+    } else {
+        // Chế độ Online
+        document.getElementById('lobbyScreen').classList.add('hidden');
+        document.getElementById('onlineHud').style.display = 'block'; // Hiện HUD Online
+        document.getElementById('scoreHud').style.display = 'none';   // Ẩn HUD Đơn
+        // Reset trạng thái hiển thị Online
+        document.getElementById('onlineStatus').innerText = "Đang thi đấu...";
+        document.getElementById('onlineStatus').style.color = "#2ed573";
+    }
+
+    document.getElementById('pauseBtn').classList.remove('hidden'); 
+    document.getElementById('pauseBtn').innerText = '⏸️';
+    
+    if (animationId) cancelAnimationFrame(animationId);
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    
+    initGame(); 
+    isPlaying = true; 
+    loop();
+}
+
+function gameOver() {
+    if (isGameOver) return;
+    isGameOver = true; 
+    // Lưu ý: Không set isPlaying = false ngay ở đây nếu là Online (để loop tiếp tục chạy phần spectate)
+    if(gameMode === 'single') isPlaying = false; 
+
+    Sound.hit();
+    document.getElementById('pauseBtn').classList.add('hidden');
+    createParticles(cat.x, cat.y, 'orange', 20); createParticles(cat.x, cat.y, 'white', 10);
+    if (score > bestScore) { bestScore = score; localStorage.setItem('astroCatBestScore', bestScore); }
+    
+    if(gameMode === 'single') {
+        // [LOGIC CŨ: CHƠI ĐƠN HIỆN FORM]
+        setTimeout(() => {
+            document.getElementById('scoreHud').style.display = 'none'; document.getElementById('levelHud').style.display = 'none';
+            document.getElementById('finalScore').innerText = score; document.getElementById('bestScoreEnd').innerText = bestScore; 
+            document.getElementById('gameOverScreen').classList.remove('hidden');
+
+            document.getElementById('submitForm').style.display = 'block'; // Hiện form
+            document.getElementById('submitForm').classList.remove('hidden');
+            document.getElementById('submitSuccess').classList.add('hidden');
+            document.querySelector('#submitForm button').disabled=false;
+            document.querySelector('#submitForm button').innerText="LƯU ĐIỂM & XEM TOP";
+            document.getElementById('onlineResultBox').style.display = 'none'; // Ẩn kết quả online
+        }, 800);
+    } else {
+        // [LOGIC MỚI: ONLINE GỬI DATA VÀ CHỜ]
+        sendData(); updateOnlineHudUI();
+        if(remoteDead) {
+            // Đối thủ chết trước rồi -> Show kết quả luôn
+            finishOnlineGame();
+        }
+    }
+}
+
+// [THÊM MỚI] HÀM KẾT THÚC ONLINE (CẢ 2 ĐÃ CHẾT)
+function finishOnlineGame() {
+    isPlaying = false; 
+    cancelAnimationFrame(animationId);
+    
+    document.getElementById('scoreHud').style.display = 'none'; 
+    document.getElementById('levelHud').style.display = 'none';
+    document.getElementById('onlineHud').style.display = 'none';
+    document.getElementById('gameOverScreen').classList.remove('hidden');
+    
+    // Ẩn form lưu điểm thủ công
+    document.getElementById('submitForm').style.display = 'none'; 
+    document.getElementById('bestScoreText').style.display = 'none';
+    
+    // Hiện kết quả Online
+    document.getElementById('onlineResultBox').style.display = 'block';
+    document.getElementById('onlineResultBox').classList.remove('hidden');
+    
+    document.getElementById('finalScore').innerText = score;
+    document.getElementById('endRemoteName').innerText = remoteName;
+    document.getElementById('finalRemoteScore').innerText = remoteScore;
+    
+    const wText = document.getElementById('winnerText');
+    const title = document.getElementById('goTitle');
+    
+    if(score > remoteScore) {
+        Sound.win();
+        title.innerText = "CHIẾN THẮNG!"; title.style.color = "#2ed573";
+        wText.innerText = "🏆 BẠN THẮNG 🏆"; wText.style.color = "#2ed573";
+    } else if(score < remoteScore) {
+        title.innerText = "THẤT BẠI!"; title.style.color = "#ff4757";
+        wText.innerText = "💀 BẠN THUA 💀"; wText.style.color = "#ff4757";
+    } else {
+        title.innerText = "HÒA NHAU!"; title.style.color = "#00FFFF";
+        wText.innerText = "🤝 BẰNG ĐIỂM 🤝"; wText.style.color = "#00FFFF";
+    }
+
+    // [QUAN TRỌNG] Chỉ CHỦ PHÒNG mới gửi điểm để tránh lưu trùng lặp
+    if (isHost) {
+        submitScore('pvp', true);
+    }
+}
+
+function resetGame() { 
+    document.getElementById('gameOverScreen').classList.add('hidden');
+    if(gameMode === 'single') startGame();
+    else location.reload();
+}
+function goHome() { location.reload(); }
+function action() { 
+    // 1. Nếu đang mở các bảng UI khác (BXH, Shop, Lobby) -> KHÔNG LÀM GÌ
+    if (!document.getElementById('leaderboardScreen').classList.contains('hidden')) return;
+    if (!document.getElementById('shopScreen').classList.contains('hidden')) return;
+    if (!document.getElementById('lobbyScreen').classList.contains('hidden')) return; // Quan trọng: Chặn khi đang ở sảnh chờ
+
+    // 2. Chỉ thực hiện hành động nhảy KHI VÀ CHỈ KHI đang chơi game
+    if (isPlaying && !isGameOver && !isPaused) {
+        cat.flap(); 
+    }
+}
+window.addEventListener('keydown', (e) => { 
+    if (e.code === 'Space') action(); 
+    if (e.code === 'KeyP' && gameMode==='single') togglePause(); 
+});
+
+// Sự kiện Chuột (Desktop)
+window.addEventListener('mousedown', (e) => {
+    if (!e.target.closest('.btn, .shop-item, .control-btn, input, .tab-btn')) { 
+        action(); 
+    } 
+});
+
+// Sự kiện Cảm ứng (Mobile)
+window.addEventListener('touchstart', (e) => { 
+    if (!e.target.closest('.btn, .shop-item, .control-btn, input, .tab-btn')) { 
+        e.preventDefault();
+        action(); 
+    } 
+}, {passive: false});
+// Gọi hàm
+loadTopRecords();
+// Khởi tạo nền động
+background.init();
+function drawStaticBackground() { 
+    if(!isPlaying) { 
+        background.draw(); 
+        if(!document.getElementById('startScreen').classList.contains('hidden')) {
+            requestAnimationFrame(drawStaticBackground); 
+        }
+    } 
+}
+drawStaticBackground();
+</script>
+</body>
+</html>

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Astro Cat 5.0: Original + Online Solo</title>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        body {
+            margin: 0; padding: 0; overflow: hidden;
+            background-color: #0d0e15;
+            font-family: 'VT323', monospace;
+            touch-action: none; user-select: none;
+        }
+
+        #root { width: 100%; height: 100vh; }
+
+        #gameCanvas { display: block; width: 100%; height: 100%; }
+
+        /* UI LAYER */
+        .ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            text-align: center; text-shadow: 2px 2px 0 #000;
+            z-index: 100;
+        }
+
+        .title { font-size: 70px; color: #FFD700; margin-bottom: 10px; animation: float 3s ease-in-out infinite; }
+        .subtitle { font-size: 24px; color: #fff; margin-bottom: 30px; }
+
+        .menu-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            width: 90%;
+            max-width: 400px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            pointer-events: auto;
+            position: relative;
+            border: none;
+            outline: none;
+            color: #fff;
+            padding: 15px 10px;
+            font-size: 26px;
+            font-family: 'VT323', monospace;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 12px;
+            transition: all 0.1s;
+            text-transform: uppercase;
+            width: 100%;
+            border: 2px solid rgba(255,255,255,0.8);
+        }
+
+        .btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 transparent !important;
+            filter: brightness(0.9);
+        }
+
+        .btn-red {
+            background: linear-gradient(to bottom, #ff6b81, #ff4757);
+            box-shadow: 0 6px 0 #b33939;
+            text-shadow: 1px 1px 0 #b33939;
+        }
+
+        .btn-purple {
+            background: linear-gradient(to bottom, #a55eea, #8854d0);
+            box-shadow: 0 6px 0 #5f27cd;
+            text-shadow: 1px 1px 0 #5f27cd;
+        }
+
+        .btn-blue {
+            background: linear-gradient(to bottom, #48dbfb, #0abde3);
+            box-shadow: 0 6px 0 #0984e3;
+            text-shadow: 1px 1px 0 #0984e3;
+        }
+
+        .btn-green {
+            background: linear-gradient(to bottom, #55efc4, #00b894);
+            box-shadow: 0 6px 0 #006266;
+            text-shadow: 1px 1px 0 #006266;
+        }
+
+        .hud { position: absolute; top: 20px; left: 20px; font-size: 48px; color: #FFD700; z-index: 1000; pointer-events: none; font-weight: bold; text-shadow: 2px 2px 4px #000, 0 0 10px #FFD700; }
+        .level-hud { position: absolute; top: 70px; left: 20px; font-size: 28px; color: #2ed573; z-index: 1000; pointer-events: none; font-weight: bold; text-shadow: 2px 2px 4px #000, 0 0 8px #2ed573; }
+        
+        .online-hud {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px;
+            border-radius: 8px;
+            font-family: 'VT323', monospace;
+            z-index: 100;
+            text-align: left;
+            border: 1px solid #444;
+        }
+        .p-info { font-size: 24px; color: #fff; text-shadow: 2px 2px 0 #000; margin-bottom: 5px; }
+
+        .control-btn {
+            position: absolute; top: 20px; font-size: 30px; color: white;
+            cursor: pointer; pointer-events: auto; z-index: 10;
+            background: rgba(0,0,0,0.5); border-radius: 5px; padding: 5px 10px; border: 2px solid white;
+        }
+        #muteBtn { right: 20px; }
+
+        .lobby-panel {
+            background: rgba(0, 0, 0, 0.8);
+            border: 3px solid #0abde3;
+            border-radius: 15px;
+            padding: 30px;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 0 0 20px rgba(10, 189, 227, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .room-input {
+            pointer-events: auto;
+            font-family: 'VT323', monospace;
+            font-size: 35px;
+            padding: 10px;
+            border-radius: 8px;
+            border: 2px solid #a55eea;
+            width: 100%;
+            text-align: center;
+            background: rgba(20, 20, 20, 0.9);
+            color: #FFD700;
+            outline: none;
+            transition: 0.3s;
+            letter-spacing: 3px;
+        }
+
+        .room-input:focus {
+            border-color: #FFD700;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .room-code-box {
+            font-size: 70px;
+            font-weight: bold;
+            color: #55efc4;
+            border: 4px dashed #55efc4;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            margin: 15px 0;
+            text-shadow: 0 0 10px #55efc4;
+            letter-spacing: 5px;
+            user-select: text;
+            pointer-events: auto;
+        }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            color: #aaa;
+            font-size: 20px;
+            margin: 10px 0;
+        }
+        .divider::before, .divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: #555;
+            margin: 0 10px;
+        }
+
+        .btn-back {
+            margin-top: 20px;
+            background: transparent;
+            border: 2px solid #ff4757;
+            color: #ff4757;
+            font-size: 24px;
+            padding: 8px 20px;
+        }
+        .btn-back:hover {
+            background: #ff4757;
+            color: white;
+        }
+
+        .gameover-panel {
+            background: rgba(0, 0, 0, 0.9);
+            border: 3px solid #ff4757;
+            border-radius: 20px;
+            padding: 40px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 0 30px rgba(255, 71, 87, 0.4);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            animation: popIn 0.3s ease-out;
+        }
+
+        @keyframes float { 
+            0% { transform: translateY(0px); } 
+            50% { transform: translateY(-10px); } 
+            100% { transform: translateY(0px); } 
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .go-title {
+            font-size: 60px;
+            color: #ff4757;
+            text-shadow: 0 0 10px #ff4757;
+            margin-bottom: 5px;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        .score-display {
+            font-size: 30px;
+            color: #fff;
+        }
+
+        .best-score {
+            font-size: 24px;
+            color: #FFD700;
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+</body>
+</html>
