@@ -118,22 +118,29 @@ io.on('connection', (socket) => {
     
     const roomCode = playerData.roomCode;
     const room = rooms.get(roomCode);
-    
     if (!room) return;
     
-    // Update player's score and dead status
+    // Cập nhật điểm và trạng thái sống/chết của người chơi gửi lên
     const playerIndex = room.players.findIndex(p => p.id === socket.id);
     if (playerIndex !== -1) {
       room.players[playerIndex].score = data.score;
       room.players[playerIndex].isDead = data.isDead;
     }
     
-    // Broadcast to opponent
+    // Báo điểm số mới cho đối thủ
     socket.to(roomCode).emit('opponent-update', {
       playerId: socket.id,
       score: data.score,
       isDead: data.isDead
     });
+
+    // LOGIC TRỌNG TÀI: Kiểm tra nếu cả 2 đều đã chết thì báo Game Over cho toàn phòng!
+    const bothDead = room.players.length === 2 && room.players.every(p => p.isDead);
+    if (bothDead) {
+      io.to(roomCode).emit('game-finished');
+      rooms.delete(roomCode);
+      console.log(`🏁 Game finished in room ${roomCode} - Cả 2 đã chết.`);
+    }
   });
 
   // Game ends

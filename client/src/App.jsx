@@ -306,9 +306,9 @@ export default function Game() {
       }, 800);
     } else {
       sendData();
-      if (gs.remoteDead) {
-        finishOnlineGame();
-      }
+      // if (gs.remoteDead) {
+      //   finishOnlineGame();
+      // }
     }
   };
 
