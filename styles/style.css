@@ -377,7 +377,38 @@
 /* 📱 MOBILE LANDSCAPE MODE (Màn hình ngang)                         */
 /* Áp dụng khi chiều cao màn hình nhỏ hơn 500px (Điện thoại xoay)    */
 /* ================================================================= */
-
+@media only screen and (max-width: 600px) {
+    .title { font-size: 55px; } /* Thu nhỏ tiêu đề chính */
+    .subtitle { font-size: 20px; }
+    
+    .menu-grid {
+        gap: 10px;
+        width: 95%;
+    }
+    .btn {
+        font-size: 20px; /* Thu nhỏ font chữ nút để không bị vỡ 2 cột */
+        padding: 12px 5px;
+    }
+    
+    /* Thu nhỏ chữ trong bảng Game Over */
+    .gameover-panel { padding: 25px 15px; width: 85%; gap: 10px; }
+    .go-title { font-size: 45px; }
+    
+    /* Gộp các nút ở màn hình Game Over xếp dọc thay vì ngang cho dễ bấm */
+    .action-buttons {
+        flex-direction: column;
+        gap: 10px;
+    }
+    .action-buttons .btn { font-size: 20px; width: 100%; }
+    
+    /* Thu nhỏ ô nhập tên / mã số */
+    .name-input, .room-input { font-size: 20px; width: 90%; }
+    #lobbyMain > .btn-blue { font-size: 20px; }
+    
+    /* Bảng xếp hạng */
+    .leaderboard-box { padding: 10px; max-height: 300px; }
+    table { font-size: 16px; }
+}
 @media only screen and (max-height: 500px) and (orientation: landscape) {
 
     /* 1. TỔNG QUAN: Thu nhỏ không gian chung */
