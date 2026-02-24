@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
@@ -15,7 +16,8 @@ const io = socketIo(server, {
 
 app.use(cors());
 app.use(express.json());
-
+const clientPath = path.join(__dirname, '..', 'client', 'dist');
+app.use(express.static(clientPath));
 const PORT = process.env.PORT || 3000;
 
 // Store active rooms and players
@@ -177,7 +179,9 @@ io.on('connection', (socket) => {
     console.log(`❌ User disconnected: ${socket.id}`);
   });
 });
-
+app.get('*', (req, res) => {
+  res.sendFile(path.join(clientPath, 'index.html'));
+});
 server.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
