@@ -130,12 +130,14 @@ export default function Game() {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     audioCtxRef.current = new AudioContext();
 
-    socketRef.current = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000', {
+    socketRef.current = io({
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       reconnectionAttempts: 5
     });
+    
+    //socketRef.current = io(import.meta.env.VITE_SOCKET_URL || '/', { ... });
 
     socketRef.current.on('room-created', (data) => {
       gsRef.current.roomCode = data.roomCode;
