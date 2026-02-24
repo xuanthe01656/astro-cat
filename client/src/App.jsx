@@ -233,24 +233,34 @@ export default function Game() {
   const addPipe = () => {
     const gs = gsRef.current;
     const canvas = gs.canvas;
-    let xPos = canvas.width; // Default position for new pipes during game
+    let xPos = canvas.width; 
+    
+    // --- BẮT ĐẦU FIX: Tự động co giãn theo chiều cao màn hình ---
+    let isShortScreen = canvas.height < 500;
     let currentGap = Math.max(130, 170 - (gs.level * 5));
+    
+    // Nếu màn hình lùn (ngang), thu hẹp khe hở lại một chút để chừa chỗ cho ống so le
+    if (isShortScreen) currentGap = Math.max(90, canvas.height * 0.35); 
+    
     gs.pipes.gap = currentGap;
-    let minPipeHeight = 50;
+    let minPipeHeight = isShortScreen ? 25 : 50; // Hạ giới hạn chiều cao tối thiểu
+    
     let maxAvailableY = canvas.height - currentGap - minPipeHeight;
     let topHeight;
     let lastPipe = gs.pipes.items[gs.pipes.items.length - 1];
 
     if (lastPipe) {
       let prevTop = lastPipe.initialTop;
+      // Hàm Math.max() thứ 2 giúp chặn lỗi toán học khi màn hình quá lùn
       let minSafe = Math.max(minPipeHeight, prevTop - MAX_Y_DIFF);
-      let maxSafe = Math.min(maxAvailableY, prevTop + MAX_Y_DIFF);
+      let maxSafe = Math.max(minSafe, Math.min(maxAvailableY, prevTop + MAX_Y_DIFF));
       topHeight = Math.floor(Math.random() * (maxSafe - minSafe + 1)) + minSafe;
     } else {
-      let startMin = canvas.height / 2 - 100;
-      let startMax = canvas.height / 2 + 50;
+      let startMin = Math.max(minPipeHeight, canvas.height / 2 - 100);
+      let startMax = Math.max(startMin, Math.min(maxAvailableY, canvas.height / 2 + 50));
       topHeight = Math.floor(Math.random() * (startMax - startMin + 1)) + startMin;
     }
+    // --- KẾT THÚC FIX ---
 
     let type = 0;
     if (gs.score >= 20) {
@@ -486,6 +496,7 @@ export default function Game() {
 
   const selectBg = (bgId) => {
     gsRef.current.userSettings.bg = bgId;
+    gsRef.current.background.stars = []; // Xóa sạch sao cũ để hệ thống tự tạo sao mới
     setUIUpdates(prev => ({ ...prev, selectedBg: bgId }));
   };
 
@@ -523,25 +534,28 @@ export default function Game() {
     let startX = 300;
     let currentX = startX;
     while (currentX < gs.canvas.width + gs.pipeDistance) {
-      // Create pipe at specific X position
-      gs.canvas.width; // This will use canvas.width as default
-      const canvas_w = gs.canvas.width;
       let xPos = currentX;
+      
+      // --- FIX ĐỒNG BỘ: Tính toán lại cho các ống lúc bắt đầu game ---
+      let isShortScreen = gs.canvas.height < 500;
       let currentGap = Math.max(130, 170 - (gs.level * 5));
+      if (isShortScreen) currentGap = Math.max(90, gs.canvas.height * 0.35);
+      
       gs.pipes.gap = currentGap;
-      let minPipeHeight = 50;
+      let minPipeHeight = isShortScreen ? 25 : 50;
       let maxAvailableY = gs.canvas.height - currentGap - minPipeHeight;
+      
       let topHeight;
       let lastPipe = gs.pipes.items[gs.pipes.items.length - 1];
 
       if (lastPipe) {
         let prevTop = lastPipe.initialTop;
         let minSafe = Math.max(minPipeHeight, prevTop - MAX_Y_DIFF);
-        let maxSafe = Math.min(maxAvailableY, prevTop + MAX_Y_DIFF);
+        let maxSafe = Math.max(minSafe, Math.min(maxAvailableY, prevTop + MAX_Y_DIFF));
         topHeight = Math.floor(Math.random() * (maxSafe - minSafe + 1)) + minSafe;
       } else {
-        let startMin = gs.canvas.height / 2 - 100;
-        let startMax = gs.canvas.height / 2 + 50;
+        let startMin = Math.max(minPipeHeight, gs.canvas.height / 2 - 100);
+        let startMax = Math.max(startMin, Math.min(maxAvailableY, gs.canvas.height / 2 + 50));
         topHeight = Math.floor(Math.random() * (startMax - startMin + 1)) + startMin;
       }
 
@@ -602,9 +616,8 @@ export default function Game() {
 
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    gsRef.current.pipeDistance =
-      canvas.width < 600 ? PIPE_DIST_MOBILE : PIPE_DIST_DESKTOP;
-
+    gsRef.current.pipeDistance =canvas.width < 600 ? PIPE_DIST_MOBILE : PIPE_DIST_DESKTOP;
+    gsRef.current.cat.radius = window.innerHeight < 500 ? 10 : 15;
     initGame();
     gsRef.current.lastFrameTime = 0; // FPS limiter
     loop();
@@ -910,18 +923,18 @@ export default function Game() {
     }
   };
 
-  const loop = () => {
+  const loop = (timestamp) => {
     const gs = gsRef.current;
-    const currentTime = performance.now();
-    const MAX_FPS = 60;
-    const FPS_INTERVAL = 1000 / MAX_FPS; // ~16.67ms per frame
+    
+    // Lấy thời gian chuẩn xác nhất của trình duyệt
+    if (!timestamp) timestamp = performance.now();
+    if (!gs.lastFrameTime) gs.lastFrameTime = timestamp;
 
-    // Skip frame if not enough time has passed (FPS capping at 60)
-    if (!gs.lastFrameTime) gs.lastFrameTime = currentTime;
-    const deltaTime = currentTime - gs.lastFrameTime;
+    const deltaTime = timestamp - gs.lastFrameTime;
+    const FPS_INTERVAL = 1000 / 60; // Khóa CHÍNH XÁC tại 16.666ms (60 FPS)
 
+    // Nếu chưa đủ thời gian, TUYỆT ĐỐI không vẽ frame mới
     if (deltaTime < FPS_INTERVAL) {
-      // Not enough time passed, schedule next frame without doing game logic
       if (!gs.isGameOver) {
         animationRef.current = requestAnimationFrame(loop);
       } else if (gs.gameMode === 'online' && !gs.remoteDead) {
@@ -930,11 +943,19 @@ export default function Game() {
       return;
     }
 
-    gs.lastFrameTime = currentTime - (deltaTime % FPS_INTERVAL);
+    // --- BỘ LỌC AN TOÀN (Cực kỳ quan trọng) ---
+    // Chống lỗi "tua nhanh" khi người chơi chuyển Tab trình duyệt
+    if (deltaTime > 100) {
+      gs.lastFrameTime = timestamp; // Chuyển Tab -> Reset thời gian
+    } else {
+      // Giữ lại phần ngàn giây bị dôi ra để đảm bảo frame tiếp theo không bị lệch nhịp
+      gs.lastFrameTime = timestamp - (deltaTime % FPS_INTERVAL);
+    }
 
     if (gs.isPaused) return;
     if (!gs.ctx || !gs.canvas) return;
 
+    // --- CHẠY LOGIC GAME (Đảm bảo chỉ chạy 60 lần 1 giây) ---
     gs.ctx.clearRect(0, 0, gs.canvas.width, gs.canvas.height);
 
     drawBackground();
@@ -945,7 +966,6 @@ export default function Game() {
     drawCat();
     handleParticles();
     
-    // Update React state to trigger HUD re-renders
     setFrameCount(f => f + 1);
 
     if (gs.isGameOver && gs.gameMode === 'online') {
@@ -965,6 +985,7 @@ export default function Game() {
       gs.frames++;
     }
 
+    // Tiếp tục vòng lặp
     if (!gs.isGameOver) {
       animationRef.current = requestAnimationFrame(loop);
     } else if (gs.gameMode === 'online' && !gs.remoteDead) {
@@ -976,7 +997,13 @@ export default function Game() {
     gsRef.current.isMuted = !gsRef.current.isMuted;
     setUIUpdates(prev => ({ ...prev, isMuted: gsRef.current.isMuted }));
   };
-
+  const togglePause = () => {
+    const gs = gsRef.current;
+    if (!gs.isPlaying || gs.isGameOver) return;
+    gs.isPaused = !gs.isPaused;
+    setUIUpdates(prev => ({ ...prev, isPaused: gs.isPaused }));
+    if (!gs.isPaused) loop();
+  };
   const handleAction = () => {
     const gs = gsRef.current;
     if (gs.isPlaying && !gs.isGameOver && !gs.isPaused) {
@@ -989,16 +1016,32 @@ export default function Game() {
   useEffect(() => {
     const handleKeydown = (e) => {
       if (e.code === 'Space') handleAction();
+      if (e.code === 'KeyP' && gsRef.current.gameMode === 'single') togglePause();
+    };
+
+    const handleTouchOrMouse = (e) => {
+      // 1. Không làm gì nếu đang bấm vào các nút UI (Tránh nhảy lộn xộn)
+      if (e.target && e.target.closest && e.target.closest('.btn, .shop-item, .control-btn, input, .tab-btn')) {
+        return;
+      }
+      
+      // 2. Chặn trình duyệt tính toán cuộn/zoom màn hình trên Mobile gây lag
+      if (e.type === 'touchstart' && e.cancelable) {
+        e.preventDefault(); 
+      }
+      
+      handleAction();
     };
 
     window.addEventListener('keydown', handleKeydown);
-    window.addEventListener('mousedown', handleAction);
-    window.addEventListener('touchstart', handleAction);
+    window.addEventListener('mousedown', handleTouchOrMouse);
+    // Phải thêm { passive: false } thì React/Trình duyệt mới cho phép dùng preventDefault()
+    window.addEventListener('touchstart', handleTouchOrMouse, { passive: false });
 
     return () => {
       window.removeEventListener('keydown', handleKeydown);
-      window.removeEventListener('mousedown', handleAction);
-      window.removeEventListener('touchstart', handleAction);
+      window.removeEventListener('mousedown', handleTouchOrMouse);
+      window.removeEventListener('touchstart', handleTouchOrMouse);
     };
   }, []);
 
@@ -1006,8 +1049,8 @@ export default function Game() {
     if (canvasRef.current) {
       canvasRef.current.width = window.innerWidth;
       canvasRef.current.height = window.innerHeight;
-      gsRef.current.pipeDistance =
-        window.innerWidth < 600 ? PIPE_DIST_MOBILE : PIPE_DIST_DESKTOP;
+      gsRef.current.pipeDistance = window.innerWidth < 600 ? PIPE_DIST_MOBILE : PIPE_DIST_DESKTOP;
+      gsRef.current.cat.radius = window.innerHeight < 500 ? 10 : 15;
     }
   };
 
@@ -1016,7 +1059,72 @@ export default function Game() {
     resizeCanvas();
     return () => window.removeEventListener('resize', resizeCanvas);
   }, []);
+  // --- VÒNG LẶP MENU: Tạo hiệu ứng bầu trời sao trôi ---
+  useEffect(() => {
+    const gs = gsRef.current;
+    const canvas = canvasRef.current;
+    
+    if (canvas && !gs.canvas) {
+      gs.canvas = canvas;
+      gs.ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
 
+    let menuAnimId;
+    let lastIdleTime = performance.now();
+    const FPS_INTERVAL = 1000 / 60; // Khóa 60 FPS cho Menu
+    
+    const idleLoop = (timestamp) => {
+      if (!gs.ctx || !gs.canvas) return;
+      if (!timestamp) timestamp = performance.now();
+
+      const deltaTime = timestamp - lastIdleTime;
+
+      // Nếu chưa đủ thời gian 1 frame (16.66ms), bỏ qua không vẽ
+      if (deltaTime < FPS_INTERVAL) {
+        menuAnimId = requestAnimationFrame(idleLoop);
+        return;
+      }
+
+      lastIdleTime = timestamp - (deltaTime % FPS_INTERVAL);
+      
+      if (gs.background.stars.length === 0) {
+        const bg = BACKGROUNDS.find(b => b.id === gs.userSettings.bg) || BACKGROUNDS[0];
+        if (bg.stars) {
+          for (let i = 0; i < 100; i++) {
+            gs.background.stars.push({
+              x: Math.random() * gs.canvas.width,
+              y: Math.random() * gs.canvas.height,
+              size: Math.random() * 2,
+              speed: Math.random() * 2 + 0.5
+            });
+          }
+        }
+      }
+
+      gs.ctx.clearRect(0, 0, gs.canvas.width, gs.canvas.height);
+      drawBackground();
+      
+      for (let s of gs.background.stars) {
+        s.x -= s.speed * 1.5; 
+        if (s.x < 0) {
+          s.x = gs.canvas.width;
+          s.y = Math.random() * gs.canvas.height;
+        }
+      }
+      
+      menuAnimId = requestAnimationFrame(idleLoop);
+    };
+
+    if (screen !== 'game') {
+      menuAnimId = requestAnimationFrame(idleLoop);
+    }
+
+    return () => {
+      if (menuAnimId) cancelAnimationFrame(menuAnimId);
+    };
+  }, [screen, uiUpdates.selectedBg]);
   return (
     <div style={{ width: '100%', height: '100vh', position: 'relative', backgroundColor: '#0d0e15' }}>
       <canvas
@@ -1074,7 +1182,7 @@ export default function Game() {
       {screen === 'shop' && (
         <div className="ui-layer">
           <div className="title" style={{ fontSize: '50px' }}>KHO TRANG BỊ</div>
-          <div style={{ display: 'flex', gap: '40px', marginBottom: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <div style={{ color: '#FFD700', fontSize: '28px' }}>CHỌN SKIN</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginTop: '10px' }}>
@@ -1144,7 +1252,7 @@ export default function Game() {
               </table>
             </div>
           )}
-          <button className="btn btn-red" onClick={() => setScreen('menu')}>ĐÓNG</button>
+          <button className="btn btn-red" onClick={() => setScreen('menu')} style={{ width: '90%', maxWidth: '500px', marginTop: '10px' }}>ĐÓNG</button>
         </div>
       )}
 
@@ -1152,8 +1260,14 @@ export default function Game() {
         <div className="ui-layer">
           <div className="gameover-panel" style={{ background: 'rgba(0, 0, 0, 0.9)', border: '3px solid #ff4757', borderRadius: '20px', padding: '40px', width: '90%', maxWidth: '500px', boxShadow: '0 0 30px rgba(255, 71, 87, 0.4)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
             <div className="go-title" style={{ fontSize: '60px', color: '#ff4757', textShadow: '0 0 10px #ff4757', marginBottom: '5px', fontWeight: 'bold', letterSpacing: '2px' }}>{gsRef.current.gameMode === 'single' ? 'GAME OVER' : uiUpdates.gameResult === 'WIN' ? '🏆 CHIẾN THẮNG!' : uiUpdates.gameResult === 'LOSE' ? '💀 THẤT BẠI!' : '🤝 HÒA NHAU!'}</div>
-            <div style={{ fontSize: '30px', color: '#fff' }}>ĐIỂM: <span style={{ color: '#FFD700' }}>{uiUpdates.finalScore || 0}</span></div>
-            {gsRef.current.gameMode === 'single' && (<div style={{ fontSize: '24px', color: '#FFD700' }}>Kỷ lục máy: <span>{uiUpdates.bestScore || 0}</span></div>)}
+            <div className="score-display">
+              ĐIỂM: <span>{uiUpdates.finalScore || 0}</span>
+            </div>
+            {gsRef.current.gameMode === 'single' && (
+              <div className="best-score">
+                  Kỷ lục máy: <span style={{ color: '#FFD700' }}>{uiUpdates.bestScore || 0}</span>
+              </div>
+            )}
             {gsRef.current.gameMode === 'online' && (
               <div style={{ background: 'rgba(0, 255, 255, 0.1)', border: '1px solid #00FFFF', padding: '10px', width: '100%', textAlign: 'center', borderRadius: '10px', marginBottom: '10px' }}>
                 <div style={{ fontSize: '20px', color: '#aaa' }}>ĐỐI THỦ (<span>{uiUpdates.remoteName}</span>): <span style={{ color: '#00FFFF', fontWeight: 'bold' }}>{uiUpdates.remoteScore || 0}</span></div>
@@ -1181,8 +1295,12 @@ export default function Game() {
           <div style={{ display: 'none' }}>{frameCount}</div>
           {gsRef.current.gameMode === 'single' && (
             <>
-              <div id="scoreHud" className="hud" style={{ position: 'absolute', top: '20px', left: '20px', fontSize: '48px', color: '#FFD700', zIndex: 1000, pointerEvents: 'none', fontWeight: 'bold', textShadow: '2px 2px 4px #000, 0 0 10px #FFD700', fontFamily: "'VT323', monospace" }}>{gsRef.current.score}</div>
-              <div id="levelHud" className="level-hud" style={{ position: 'absolute', top: '70px', left: '20px', fontSize: '28px', color: '#2ed573', zIndex: 1000, pointerEvents: 'none', fontWeight: 'bold', textShadow: '2px 2px 4px #000, 0 0 8px #2ed573', fontFamily: "'VT323', monospace" }}>LVL {gsRef.current.level}</div>
+              <div id="scoreHud" className="hud" style={{ display: 'block', position: 'absolute', top: '20px', left: '20px', fontSize: '48px', color: '#FFD700', zIndex: 1000, pointerEvents: 'none', fontWeight: 'bold', textShadow: '2px 2px 4px #000, 0 0 10px #FFD700', fontFamily: "'VT323', monospace" }}>
+                {gsRef.current.score}
+              </div>
+              <div id="levelHud" className="level-hud" style={{ display: 'block', position: 'absolute', top: '70px', left: '20px', fontSize: '28px', color: '#2ed573', zIndex: 1000, pointerEvents: 'none', fontWeight: 'bold', textShadow: '2px 2px 4px #000, 0 0 8px #2ed573', fontFamily: "'VT323', monospace" }}>
+                LVL {gsRef.current.level}
+              </div>
             </>
           )}
           {gsRef.current.gameMode === 'online' && (
@@ -1193,26 +1311,13 @@ export default function Game() {
             </div>
           )}
           <div id="muteBtn" onClick={flipMute} style={{ position: 'absolute', top: '20px', right: '20px', fontSize: '30px', color: 'white', cursor: 'pointer', pointerEvents: 'auto', zIndex: 1001, background: 'rgba(0,0,0,0.5)', borderRadius: '5px', padding: '5px 10px', border: '2px solid white' }}>{gsRef.current.isMuted ? '🔇' : '🔊'}</div>
-          
-          {levelUpEffect && (
-            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 1002, pointerEvents: 'none', animation: 'scaleInOut 1.5s ease-out' }}>
-              <div style={{ fontSize: '80px', fontWeight: 'bold', color: '#FFD700', textShadow: '0 0 20px #FFD700, 0 0 40px #FF6600', textAlign: 'center', lineHeight: 1 }}>
-                ⬆️
-              </div>
-              <div style={{ fontSize: '60px', fontWeight: 'bold', color: '#2ed573', textShadow: '0 0 15px #2ed573', textAlign: 'center', marginTop: '10px', letterSpacing: '3px' }}>
-                LEVEL UP!
-              </div>
-              <div style={{ fontSize: '40px', color: '#00FFFF', textShadow: '0 0 10px #00FFFF', textAlign: 'center', marginTop: '5px' }}>
-                LVL {gsRef.current.level}
-              </div>
-              <style>{`
-                @keyframes scaleInOut {
-                  0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
-                  50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
-                  100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
-                }
-              `}</style>
+          {gsRef.current.gameMode === 'single' && (
+            <div id="pauseBtn" className="control-btn" onClick={togglePause} style={{ right: '80px' }}>
+                {uiUpdates.isPaused ? '▶️' : '⏸️'}
             </div>
+          )}
+          {levelUpEffect && (
+            <div id="levelUpMsg">LEVEL UP!</div>
           )}
         </>
       )}
