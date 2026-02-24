@@ -1183,28 +1183,48 @@ export default function Game() {
         <div className="ui-layer">
           <div className="title" style={{ fontSize: '50px' }}>KHO TRANG BỊ</div>
           <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
+            
+            {/* --- CỘT CHỌN SKIN --- */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <div style={{ color: '#FFD700', fontSize: '28px' }}>CHỌN SKIN</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginTop: '10px' }}>
                 {SKINS.map(s => (
-                  <div key={s.id} onClick={() => selectSkin(s.id)} style={{ pointerEvents: 'auto', border: '2px solid #555', background: '#333', width: '90px', height: '90px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', borderRadius: '5px', flexDirection: 'column', overflow: 'hidden', borderColor: gsRef.current.userSettings.skin === s.id ? '#FFD700' : '#555', borderWidth: gsRef.current.userSettings.skin === s.id ? '3px' : '2px', boxShadow: gsRef.current.userSettings.skin === s.id ? '0 0 15px #FFD700' : 'none' }}>
-                    <div style={{ fontSize: '30px', marginBottom: '5px', color: s.color }}>🐱</div>
+                  <div 
+                    key={s.id} 
+                    className="shop-item" // BẮT BUỘC CÓ ĐỂ CLICK ĐƯỢC TRÊN MOBILE
+                    onClick={() => selectSkin(s.id)} 
+                    style={{ pointerEvents: 'auto', border: '2px solid #555', background: '#333', width: '90px', height: '90px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', borderRadius: '5px', flexDirection: 'column', overflow: 'hidden', borderColor: gsRef.current.userSettings.skin === s.id ? '#FFD700' : '#555', borderWidth: gsRef.current.userSettings.skin === s.id ? '3px' : '2px', boxShadow: gsRef.current.userSettings.skin === s.id ? '0 0 15px #FFD700' : 'none' }}
+                  >
+                    {/* KIỂM TRA: Nếu có link ảnh thì hiện ảnh, không thì hiện icon tròn */}
+                    {s.imgSrc ? (
+                        <img src={s.imgSrc} alt={s.name} style={{ width: '50px', height: '50px', objectFit: 'contain', marginBottom: '5px' }} />
+                    ) : (
+                        <div style={{ fontSize: '30px', marginBottom: '5px', color: s.color }}>🐱</div>
+                    )}
                     <div style={{ fontSize: '16px', color: '#ccc' }}>{s.name}</div>
                   </div>
                 ))}
               </div>
             </div>
+
+            {/* --- CỘT CHỌN BỐI CẢNH --- */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <div style={{ color: '#00FFFF', fontSize: '28px' }}>BỐI CẢNH</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginTop: '10px' }}>
                 {BACKGROUNDS.map(b => (
-                  <div key={b.id} onClick={() => selectBg(b.id)} style={{ pointerEvents: 'auto', border: '2px solid #555', background: '#333', width: '90px', height: '90px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', borderRadius: '5px', flexDirection: 'column', overflow: 'hidden', borderColor: gsRef.current.userSettings.bg === b.id ? '#FFD700' : '#555', borderWidth: gsRef.current.userSettings.bg === b.id ? '3px' : '2px', boxShadow: gsRef.current.userSettings.bg === b.id ? '0 0 15px #FFD700' : 'none' }}>
+                  <div 
+                    key={b.id} 
+                    className="shop-item" // BẮT BUỘC CÓ ĐỂ CLICK ĐƯỢC TRÊN MOBILE
+                    onClick={() => selectBg(b.id)} 
+                    style={{ pointerEvents: 'auto', border: '2px solid #555', background: '#333', width: '90px', height: '90px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', borderRadius: '5px', flexDirection: 'column', overflow: 'hidden', borderColor: gsRef.current.userSettings.bg === b.id ? '#FFD700' : '#555', borderWidth: gsRef.current.userSettings.bg === b.id ? '3px' : '2px', boxShadow: gsRef.current.userSettings.bg === b.id ? '0 0 15px #FFD700' : 'none' }}
+                  >
                     <div style={{ background: `linear-gradient(to bottom, ${b.top}, ${b.bottom})`, width: '30px', height: '30px', borderRadius: '50%' }}></div>
                     <div style={{ fontSize: '16px', color: '#ccc', marginTop: '5px' }}>{b.name}</div>
                   </div>
                 ))}
               </div>
             </div>
+            
           </div>
           <button className="btn btn-green" onClick={closeShop}>XÁC NHẬN</button>
         </div>
@@ -1213,10 +1233,22 @@ export default function Game() {
       {screen === 'leaderboard' && (
         <div className="ui-layer" style={{ background: 'rgba(0,0,0,0.95)', zIndex: 50 }}>
           <div className="title" style={{ fontSize: '40px' }}>BẢNG XẾP HẠNG</div>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '10px' }}>
-            <button style={{ background: leaderboardMode === 'single' ? '#FFD700' : '#333', color: leaderboardMode === 'single' ? '#000' : '#fff', border: '1px solid #777', padding: '5px 15px', cursor: 'pointer', fontFamily: "'VT323', monospace", fontSize: '20px', pointerEvents: 'auto' }} onClick={() => openLeaderboard('single')}>CHƠI ĐƠN</button>
-            <button style={{ background: leaderboardMode === 'pvp' ? '#FFD700' : '#333', color: leaderboardMode === 'pvp' ? '#000' : '#fff', border: '1px solid #777', padding: '5px 15px', cursor: 'pointer', fontFamily: "'VT323', monospace", fontSize: '20px', pointerEvents: 'auto' }} onClick={() => openLeaderboard('pvp')}>PVP ĐÔI</button>
+          
+          <div className="tab-container">
+            <button 
+              className={`tab-btn ${leaderboardMode === 'single' ? 'active' : ''}`} 
+              onClick={() => openLeaderboard('single')}
+            >
+              CHƠI ĐƠN
+            </button>
+            <button 
+              className={`tab-btn ${leaderboardMode === 'pvp' ? 'active' : ''}`} 
+              onClick={() => openLeaderboard('pvp')}
+            >
+              PVP ĐÔI
+            </button>
           </div>
+
           {isLoadingLeaderboard ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', gap: '20px' }}>
               <div style={{ fontSize: '24px', color: '#FFD700' }}>Đang tải bảng xếp hạng...</div>
@@ -1233,20 +1265,26 @@ export default function Game() {
               `}</style>
             </div>
           ) : (
-            <div style={{ background: 'rgba(0,0,0,0.95)', padding: '20px', border: '2px solid #FFD700', borderRadius: '10px', width: '90%', maxWidth: '500px', maxHeight: '400px', overflowY: 'auto', pointerEvents: 'auto', marginBottom: '20px' }}>
-              <table style={{ width: '100%', color: 'white', fontSize: '20px', borderCollapse: 'collapse' }}>
+            <div className="leaderboard-box">
+              <table>
                 <thead>
                   <tr>
-                    <th style={{ borderBottom: '1px solid #FFD700', padding: '5px', color: '#FFD700', position: 'sticky', top: 0, background: '#000' }}>#</th>
-                    <th style={{ borderBottom: '1px solid #FFD700', padding: '5px', color: '#FFD700', position: 'sticky', top: 0, background: '#000' }}>{leaderboardMode === 'pvp' ? 'CẶP ĐẤU (P1 vs P2)' : 'TÊN NGƯỜI CHƠI'}</th>
-                    <th style={{ borderBottom: '1px solid #FFD700', padding: '5px', color: '#FFD700', position: 'sticky', top: 0, background: '#000' }}>ĐIỂM</th>
+                    <th>#</th>
+                    <th>{leaderboardMode === 'pvp' ? 'CẶP ĐẤU (P1 vs P2)' : 'TÊN NGƯỜI CHƠI'}</th>
+                    <th>ĐIỂM</th>
                   </tr>
                 </thead>
                 <tbody>
                   {leaderboardData.length === 0 ? (
-                    <tr><td colSpan="3" style={{ padding: '8px', borderBottom: '1px solid #444', textAlign: 'center' }}>Chưa có dữ liệu</td></tr>
+                    <tr><td colSpan="3" style={{ textAlign: 'center', padding: '8px' }}>Chưa có dữ liệu</td></tr>
                   ) : (
-                    leaderboardData.map((item, index) => (<tr key={index}><td style={{ padding: '8px', borderBottom: '1px solid #444' }}>{index + 1}</td><td style={{ padding: '8px', borderBottom: '1px solid #444', color: index === 0 ? '#FFD700' : 'white' }}>{item.name}</td><td style={{ padding: '8px', borderBottom: '1px solid #444' }}>{item.score}</td></tr>))
+                    leaderboardData.map((item, index) => (
+                      <tr key={index}>
+                        <td>{index + 1}</td>
+                        <td style={{ color: index === 0 ? '#FFD700' : 'white' }}>{item.name}</td>
+                        <td>{item.score}</td>
+                      </tr>
+                    ))
                   )}
                 </tbody>
               </table>

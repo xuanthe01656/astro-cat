@@ -156,7 +156,29 @@
         th { border-bottom: 1px solid #FFD700; padding: 5px; color: #FFD700; position: sticky; top: 0; background: #000; }
         td { padding: 8px; border-bottom: 1px solid #444; }
         #loadingMsg { position: fixed; top: 10px; right: 10px; background: #333; color: #00ff00; padding: 5px 10px; border-radius: 4px; font-size: 16px; display: none; z-index: 100; }
-
+        .tab-container { 
+            display: flex; 
+            justify-content: center; 
+            gap: 10px; 
+            margin-bottom: 10px; 
+        }
+        .tab-btn { 
+            background: #333; 
+            color: #fff; 
+            border: 1px solid #777; 
+            padding: 5px 15px; 
+            cursor: pointer; 
+            font-family: 'VT323', monospace; 
+            font-size: 20px; 
+            pointer-events: auto; /* QUAN TRỌNG NHẤT: Bật lại khả năng click */
+            transition: all 0.2s;
+        }
+        .tab-btn.active { 
+            background: #FFD700; 
+            color: #000; 
+            border-color: #FFD700; 
+            font-weight: bold;
+        }
         /* [MỚI] UI LOBBY (PHÒNG CHỜ) */
         #lobbyScreen { background: rgba(0,0,0,0.9); z-index: 25; }
         .room-code-display { font-size: 50px; color: #00FFFF; border: 2px dashed #fff; padding: 10px 30px; margin: 20px; background: rgba(0,0,0,0.5); user-select: text; pointer-events: auto; }
