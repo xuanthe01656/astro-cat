@@ -356,12 +356,26 @@ export default function Game() {
     gs.isGameOver = true;
     Sound.hit();
     if (gs.score > gs.bestScore) gs.bestScore = gs.score;
-    
-    // Trừ 1 mạng và Lưu mây ngay lập tức
-    if (currentUser && gs.lives > 0) {
+   // Trừ mạng cho cả User và Guest
+    if (gs.lives > 0) {
       gs.lives -= 1;
       setUIUpdates(prev => ({ ...prev, lives: gs.lives }));
+
+      if (!currentUser) {
+        // Lưu offline cho Guest
+        localStorage.setItem('astro_guest_lives', gs.lives);
+        if (gs.lives === 4) { // Vừa mất mạng đầu tiên từ lúc full mạng
+           localStorage.setItem('astro_guest_last_lost', Date.now());
+        }
+      }
+    }
+
+    // QUAN TRỌNG: LƯU XU VÀ KỶ LỤC NGAY SAU KHI CHẾT CHO CẢ 2 ĐỐI TƯỢNG
+    if (currentUser) {
       saveUserProfile(); 
+    } else {
+      localStorage.setItem('astro_guest_coins', gs.coins);
+      localStorage.setItem('astroCatBestScore', gs.bestScore);
     }
     if (gs.score > gs.bestScore) {
       gs.bestScore = gs.score;
@@ -422,37 +436,62 @@ export default function Game() {
 
   const submitScore = async (mode = 'single', isAuto = false) => {
     const gs = gsRef.current;
+    
+    // Vì PvP đã bắt buộc đăng nhập, nên nếu lọt vào đây mà chưa có currentUser
+    // thì chỉ có thể là chơi Đơn chưa đăng nhập -> Chặn luôn.
+    if (!currentUser) return;
+
     let name = '';
     let scoreToSend = gs.score;
 
     if (mode === 'single') {
       const playerNameInput = document.getElementById('playerName');
-      name = playerNameInput ? playerNameInput.value.trim() || 'Ẩn danh' : 'Ẩn danh';
+      // Ưu tiên: Tên vừa nhập -> Tên đã nhớ ở Local -> Tên Google
+      name = playerNameInput ? playerNameInput.value.trim() : (localStorage.getItem('astro_custom_name') || currentUser.displayName);
+      localStorage.setItem('astro_custom_name', name);
+      gsRef.current.myName = name;
+      scoreToSend = gs.score;
     } else {
+      // LOGIC PVP LƯU THEO CẶP:
+      // Ai điểm cao hơn thì lấy điểm đó đại diện cho trận đấu, và tên người đó đứng trước có Cúp
       if (gs.score >= gs.remoteScore) {
-        name = `${gs.myName} (${gs.score}) ⚔️ ${gs.remoteName} (${gs.remoteScore})`;
+        name = `${gs.myName} 🏆 ${gs.remoteName}`;
         scoreToSend = gs.score;
       } else {
-        name = `${gs.remoteName} (${gs.remoteScore}) ⚔️ ${gs.myName} (${gs.score})`;
+        name = `${gs.remoteName} 🏆 ${gs.myName}`;
         scoreToSend = gs.remoteScore;
       }
     }
 
-    const loadingToast = toast.loading('💾 Đang lưu điểm lên Firebase...');
+    // Nếu tự động lưu (PvP) thì không hiện Toast làm phiền người chơi
+    if (!isAuto) toast.loading('💾 Đang kiểm tra và lưu kỷ lục...', { id: 'saveScore' });
 
     try {
-      // Ghi dữ liệu vào collection "leaderboard" của Firestore
-      await addDoc(collection(db, "leaderboard"), {
+      // Tạo ID duy nhất cho tài khoản này (Ví dụ: "uid123_single" hoặc "uid123_pvp")
+      const docId = `${currentUser.uid}_${mode}`;
+      const scoreRef = doc(db, "leaderboard", docId);
+
+      // Kiểm tra Kỷ lục cũ trên mây
+      const snap = await getDoc(scoreRef);
+      if (snap.exists() && snap.data().score >= scoreToSend) {
+        if (!isAuto) {
+          toast.dismiss('saveScore');
+          toast.error('❌ Điểm chưa vượt qua Kỷ lục cũ của bạn!');
+        }
+        return; // Dừng lại, không ghi đè nếu điểm thấp hơn
+      }
+
+      // Ghi đè Kỷ lục mới
+      await setDoc(scoreRef, {
         name: name,
         score: scoreToSend,
         mode: mode,
         timestamp: new Date()
       });
 
-      toast.dismiss(loadingToast);
-      toast.success('✅ Đã lưu thành công!');
-      
       if (!isAuto) {
+        toast.dismiss('saveScore');
+        toast.success('✅ Đã cập nhật kỷ lục mới!');
         const form = document.getElementById('submitForm');
         const succ = document.getElementById('submitSuccess');
         if (form) form.classList.add('hidden');
@@ -460,8 +499,10 @@ export default function Game() {
         setTimeout(() => openLeaderboard(mode), 1000);
       }
     } catch (err) {
-      toast.dismiss(loadingToast);
-      toast.error('❌ Lỗi lưu điểm! Vui lòng thử lại.');
+      if (!isAuto) {
+        toast.dismiss('saveScore');
+        toast.error('❌ Lỗi lưu điểm! Vui lòng thử lại.');
+      }
       console.error("Firebase Error:", err);
     }
   };
@@ -529,6 +570,7 @@ export default function Game() {
   };
  
   const createRoom = () => {
+    if (!currentUser) return toast.error('Vui lòng đăng nhập!');
     const nameInput = document.getElementById('lobbyNameInput');
     const name = nameInput ? nameInput.value.trim() : '';
     if (!name || name.length < 2) {
@@ -536,7 +578,7 @@ export default function Game() {
       return;
     }
     gsRef.current.myName = name;
-    localStorage.setItem('lastPlayerName', name);
+    localStorage.setItem('astro_custom_name', name);
     gsRef.current.isHost = true;
     setLobbyState('wait'); // Switch to waiting state
     toast.success('✅ Phòng đã tạo thành công!');
@@ -547,6 +589,7 @@ export default function Game() {
   };
 
   const joinRoom = () => {
+    if (!currentUser) return toast.error('Vui lòng đăng nhập!');
     const nameInput = document.getElementById('lobbyNameInput');
     const codeInput = document.getElementById('roomInput');
     const name = nameInput ? nameInput.value.trim() : '';
@@ -562,7 +605,7 @@ export default function Game() {
     }
 
     gsRef.current.myName = name;
-    localStorage.setItem('lastPlayerName', name);
+    localStorage.setItem('astro_custom_name', name);
     toast.loading('🔗 Đang kết nối...');
     socketRef.current.emit('join-room', {
       roomCode: code,
@@ -688,8 +731,8 @@ export default function Game() {
   };
 
   const startGame = (mode) => {
-    if (currentUser && gsRef.current.lives <= 0) {
-      toast.error('❌ Bạn đã hết mạng! Hãy chờ đến ngày mai hoặc Mua thêm.');
+    if (gsRef.current.lives <= 0) {
+      toast.error('❌ Bạn đã hết mạng! Hãy chờ hồi phục hoặc Xem quảng cáo.');
       return;
     }
     gsRef.current.gameMode = mode;
@@ -985,9 +1028,11 @@ export default function Game() {
             gs.score += 5;
             setUIUpdates(prev => ({ ...prev, score: gs.score }));
           } else if (p.type === 'COIN') {
-            gs.coins += 1; // Ăn 1 đồng = 1 Xu
-            setUIUpdates(prev => ({ ...prev, coins: gs.coins }));
-          }
+          gs.coins += 1; // Ăn 1 đồng = 1 Xu
+          setUIUpdates(prev => ({ ...prev, coins: gs.coins }));
+          // 🚨 NẾU LÀ KHÁCH THÌ CẤT XU NGAY VÀO LOCALSTORAGE (ĐỀ PHÒNG F5 BỊ MẤT)
+          if (!auth.currentUser) localStorage.setItem('astro_guest_coins', gs.coins);
+        }
         }
       }
 
@@ -1213,12 +1258,41 @@ export default function Game() {
   }, [screen, uiUpdates.selectedBg]);
   // --- HỆ THỐNG ĐĂNG NHẬP GOOGLE ---
   useEffect(() => {
-    // Lắng nghe xem user đã đăng nhập hay chưa (tự động nhớ đăng nhập khi F5)
+    // Lắng nghe xem user đã đăng nhập hay chưa
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
-        gsRef.current.myName = user.displayName; // Cập nhật tên vào game
+        gsRef.current.myName = user.displayName; 
         await loadUserProfile(user);
+      } else {
+        // --- LOGIC CHO NGƯỜI CHƠI KHÁCH (GUEST) ---
+        let guestLives = parseInt(localStorage.getItem('astro_guest_lives'));
+        if (isNaN(guestLives)) guestLives = 5; // Khách mới vào cho 5 mạng
+        let lastLost = parseInt(localStorage.getItem('astro_guest_last_lost')) || 0;
+
+        const REGEN_TIME = 4 * 60 * 60 * 1000; // 4 tiếng hồi 1 mạng giống User
+
+        if (guestLives < 5 && lastLost > 0) {
+           let now = Date.now();
+           let livesRecovered = Math.floor((now - lastLost) / REGEN_TIME);
+           
+           if (livesRecovered > 0) {
+              guestLives += livesRecovered;
+              if (guestLives >= 5) {
+                 guestLives = 5;
+                 localStorage.removeItem('astro_guest_last_lost');
+              } else {
+                 localStorage.setItem('astro_guest_last_lost', lastLost + livesRecovered * REGEN_TIME);
+              }
+           }
+        }
+        gsRef.current.lives = guestLives;
+        //NẠP LẠI XU VÀ KỶ LỤC TỪ LOCALSTORAGE CHO KHÁCH
+        let guestCoins = parseInt(localStorage.getItem('astro_guest_coins')) || 0;
+        gsRef.current.coins = guestCoins;
+        gsRef.current.bestScore = parseInt(localStorage.getItem('astroCatBestScore')) || 0;
+        setUIUpdates(prev => ({ ...prev, lives: guestLives, coins: guestCoins }));
+        localStorage.setItem('astro_guest_lives', guestLives);
       }
     });
     return () => unsubscribe();
@@ -1248,12 +1322,14 @@ export default function Game() {
     const userRef = doc(db, "users", user.uid);
     const snap = await getDoc(userRef);
 
+    // 🚨 ĐỌC SỐ XU VÀ KỶ LỤC CÀY ĐƯỢC LÚC LÀM KHÁCH ĐỂ CHUẨN BỊ CỘNG DỒN
+    let guestCoins = parseInt(localStorage.getItem('astro_guest_coins')) || 0;
+    let guestBestScore = parseInt(localStorage.getItem('astroCatBestScore')) || 0;
+
     if (snap.exists()) {
       const data = snap.data();
       let currentLives = data.lives !== undefined ? data.lives : 5;
       let updatedAt = data.livesUpdatedAt || Date.now();
-
-      // THUẬT TOÁN HỒI MẠNG ĐỒNG ĐỀU: 4 TIẾNG / 1 MẠNG (14,400,000 mili-giây)
       const REGEN_TIME = 4 * 60 * 60 * 1000; 
 
       if (currentLives < 5) {
@@ -1265,30 +1341,29 @@ export default function Game() {
           currentLives += livesToRecover;
           if (currentLives >= 5) {
             currentLives = 5;
-            updatedAt = now; // Nếu đầy thì mốc thời gian là hiện tại
+            updatedAt = now;
           } else {
-            updatedAt += livesToRecover * REGEN_TIME; // Giữ lại số phút dư chưa đủ 4 tiếng
+            updatedAt += livesToRecover * REGEN_TIME; 
           }
         }
       } else {
         updatedAt = Date.now();
       }
 
-      gsRef.current.bestScore = data.highScore || 0;
-      gsRef.current.coins = data.coins || 0;
+      // 🚨 CỘNG DỒN XU KHÁCH VÀO TÀI KHOẢN FIREBASE & LẤY KỶ LỤC CAO NHẤT
+      gsRef.current.bestScore = Math.max(data.highScore || 0, guestBestScore);
+      gsRef.current.coins = (data.coins || 0) + guestCoins;
       gsRef.current.lives = currentLives;
       gsRef.current.livesUpdatedAt = updatedAt;
       gsRef.current.inventory = data.inventory || { skins: ['classic'], bgs: ['deep'] };
       gsRef.current.userSettings = data.equipped || { skin: 'classic', bg: 'deep' };
       
-      setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins, lives: gsRef.current.lives }));
-      saveUserProfile(); 
     } else {
       const newProfile = {
         displayName: user.displayName,
         photoURL: user.photoURL,
-        highScore: 0,
-        coins: 0,
+        highScore: guestBestScore, // 🚨 TRUYỀN KỶ LỤC KHÁCH VÀO TK MỚI
+        coins: guestCoins,         // 🚨 TRUYỀN XU KHÁCH VÀO TK MỚI
         lives: 5,
         livesUpdatedAt: Date.now(),
         inventory: { skins: ['classic'], bgs: ['deep'] },
@@ -1296,8 +1371,13 @@ export default function Game() {
       };
       await setDoc(userRef, newProfile);
       gsRef.current = { ...gsRef.current, ...newProfile };
-      setUIUpdates(prev => ({ ...prev, coins: 0, lives: 5 }));
     }
+
+    // XÓA DỮ LIỆU KHÁCH SAU KHI ĐÃ "NHẬP KHẨU" THÀNH CÔNG (Tránh cộng dồn gian lận)
+    if (guestCoins > 0) localStorage.removeItem('astro_guest_coins');
+
+    setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins, lives: gsRef.current.lives }));
+    saveUserProfile(); 
   };
 
   // --- LƯU HỒ SƠ LÊN FIREBASE ---
@@ -1394,7 +1474,17 @@ export default function Game() {
 
           <div className="menu-grid">
             <button className="btn btn-red" onClick={() => startGame('single')}>🚀 Chơi Đơn</button>
-            <button className="btn btn-purple" onClick={() => setScreen('lobby')}>⚔️ PvP Online</button>
+            <button className="btn btn-purple" onClick={() => {
+              if (!currentUser) {
+                toast.error('❌ Vui lòng Đăng nhập để chơi PvP Online!', { duration: 4000 });
+                // Có thể tự động kích hoạt hàm popup đăng nhập luôn nếu muốn
+                //loginWithGoogle(); 
+                return;
+              }
+              setScreen('lobby');
+            }}>
+              ⚔️ PvP Online
+            </button>
             <button className="btn btn-blue" onClick={openShop}>🛒 Cửa Hàng</button>
             <button className="btn btn-green" onClick={() => openLeaderboard('single')}>🏆 Xếp Hạng</button>
           </div>
@@ -1413,7 +1503,10 @@ export default function Game() {
           <div className="lobby-panel">
             {lobbyState === 'main' && (
               <div id="lobbyMain">
-                <input type="text" id="lobbyNameInput" placeholder="NHẬP TÊN CHIẾN BINH" maxLength="12" defaultValue={localStorage.getItem('lastPlayerName') || ''} style={{ width: '90%', padding: '10px', fontFamily: "'VT323', monospace", fontSize: '24px', textAlign: 'center', borderRadius: '8px', border: '2px solid #FFD700', background: 'rgba(0,0,0,0.5)', color: '#fff', outline: 'none', marginBottom: '15px', pointerEvents: 'auto' }} />
+                <input type="text" id="lobbyNameInput" placeholder="NHẬP TÊN CHIẾN BINH" maxLength="12" 
+                  defaultValue={localStorage.getItem('astro_custom_name') || currentUser?.displayName || ''} 
+                  style={{ width: '90%', padding: '10px', fontFamily: "'VT323', monospace", fontSize: '24px', textAlign: 'center', borderRadius: '8px', border: '2px solid #FFD700', background: 'rgba(0,0,0,0.5)', color: '#fff', outline: 'none', marginBottom: '15px', pointerEvents: 'auto' }} 
+                />
                 <button className="btn btn-blue" onClick={createRoom} style={{ width: '100%' }}>⚡ TẠO PHÒNG MỚI</button>
                 <div className="divider">HOẶC</div>
                 <div className="input-group">
@@ -1645,8 +1738,21 @@ export default function Game() {
             )}
             {gsRef.current.gameMode === 'single' && (
               <div id="submitForm" style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center', borderTop: '1px solid #444', paddingTop: '20px', marginTop: '5px' }}>
-                <input type="text" id="playerName" className="name-input" placeholder="NHẬP TÊN BẠN" maxLength="12" style={{ width: '80%', padding: '12px', fontFamily: "'VT323', monospace", fontSize: '24px', textAlign: 'center', borderRadius: '8px', border: '2px solid #2ed573', background: 'rgba(0,0,0,0.5)', color: '#fff', outline: 'none', pointerEvents: 'auto' }} />
-                <button className="btn btn-green" onClick={() => submitScore('single')} style={{ width: '80%' }}>💾 LƯU ĐIỂM & XEM TOP</button>
+                {currentUser ? (
+                  <>
+                    <input type="text" id="playerName" className="name-input" placeholder="NHẬP TÊN BẠN" maxLength="12" defaultValue={currentUser.displayName} style={{ width: '80%', padding: '12px', fontFamily: "'VT323', monospace", fontSize: '24px', textAlign: 'center', borderRadius: '8px', border: '2px solid #2ed573', background: 'rgba(0,0,0,0.5)', color: '#fff', outline: 'none', pointerEvents: 'auto' }} />
+                    <button className="btn btn-green" onClick={() => submitScore('single')} style={{ width: '80%' }}>💾 LƯU ĐIỂM & XEM TOP</button>
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'center', width: '100%' }}>
+                    <p style={{ color: '#FFD700', fontSize: '18px', margin: '0 0 10px 0', fontFamily: "'VT323', monospace" }}>
+                      *Đăng nhập để lưu kỷ lục & đua top*
+                    </p>
+                    <button onClick={loginWithGoogle} className="btn btn-blue" style={{ width: '90%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', margin: '0 auto' }}>
+                      <img src="/images/google.png" alt="Google" style={{ width: '24px' }} /> ĐĂNG NHẬP NGAY
+                    </button>
+                  </div>
+                )}
               </div>
             )}
             <div id="submitSuccess" className="hidden" style={{ color: '#2ed573', fontSize: '24px', margin: '10px 0', display: 'none' }}>✅ Đã lưu thành công!</div>
@@ -1661,6 +1767,8 @@ export default function Game() {
       {screen === 'game' && (
         <>
           <div style={{ display: 'none' }}>{frameCount}</div>
+          
+          {/* --- GIAO DIỆN CHƠI ĐƠN --- */}
           {gsRef.current.gameMode === 'single' && (
             <>
               <div id="scoreHud" className="hud" style={{ display: 'block', position: 'absolute', top: '20px', left: '20px', fontSize: '48px', color: '#FFD700', zIndex: 1000, pointerEvents: 'none', fontWeight: 'bold', textShadow: '2px 2px 4px #000, 0 0 10px #FFD700', fontFamily: "'VT323', monospace" }}>
@@ -1669,15 +1777,24 @@ export default function Game() {
               <div id="levelHud" className="level-hud" style={{ display: 'block', position: 'absolute', top: '70px', left: '20px', fontSize: '28px', color: '#2ed573', zIndex: 1000, pointerEvents: 'none', fontWeight: 'bold', textShadow: '2px 2px 4px #000, 0 0 8px #2ed573', fontFamily: "'VT323', monospace" }}>
                 LVL {gsRef.current.level}
               </div>
+              {/* Thêm bộ đếm Xu ở dưới Level */}
+              <div id="coinHud" style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'absolute', top: '110px', left: '20px', fontSize: '28px', color: '#FFD700', zIndex: 1000, pointerEvents: 'none', fontWeight: 'bold', textShadow: '2px 2px 4px #000, 0 0 8px #FFD700', fontFamily: "'VT323', monospace" }}>
+                <span>🪙</span> {uiUpdates.coins || 0}
+              </div>
             </>
           )}
+
+          {/* --- GIAO DIỆN CHƠI PVP --- */}
           {gsRef.current.gameMode === 'online' && (
             <div className="online-hud" style={{ position: 'absolute', top: '10px', left: '10px', background: 'rgba(0, 0, 0, 0.6)', padding: '10px', borderRadius: '8px', fontFamily: "'VT323', monospace", zIndex: 1000, textAlign: 'left', border: '1px solid #444', pointerEvents: 'auto' }}>
               <div style={{ fontSize: '24px', color: '#FFD700', textShadow: '2px 2px 0 #000', marginBottom: '5px' }}><span style={{ fontSize: '0.7em', opacity: 0.8, marginRight: '5px' }}>BẠN</span>: {gsRef.current.score}</div>
               <div style={{ fontSize: '24px', color: '#00FFFF', textShadow: '2px 2px 0 #000', marginBottom: '5px' }}><span style={{ fontSize: '0.7em', opacity: 0.8, marginRight: '5px' }}>ĐỐI THỦ</span>: {gsRef.current.remoteScore}</div>
+              {/* Thêm bộ đếm Xu vào bảng Online */}
+              <div style={{ fontSize: '20px', color: '#FFD700', textShadow: '2px 2px 0 #000', marginBottom: '5px' }}><span style={{ fontSize: '0.7em', opacity: 0.8, marginRight: '5px' }}>XU</span>: 🪙 {uiUpdates.coins || 0}</div>
               <div style={{ color: '#2ed573', fontSize: '18px' }}>Kết nối OK</div>
             </div>
           )}
+
           <div id="muteBtn" onClick={flipMute} style={{ position: 'absolute', top: '20px', right: '20px', fontSize: '30px', color: 'white', cursor: 'pointer', pointerEvents: 'auto', zIndex: 1001, background: 'rgba(0,0,0,0.5)', borderRadius: '5px', padding: '5px 10px', border: '2px solid white' }}>{gsRef.current.isMuted ? '🔇' : '🔊'}</div>
           {gsRef.current.gameMode === 'single' && (
             <div id="pauseBtn" className="control-btn" onClick={togglePause} style={{ right: '80px' }}>
