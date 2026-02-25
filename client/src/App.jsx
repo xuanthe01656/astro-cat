@@ -1372,7 +1372,7 @@ export default function Game() {
               </div>
             ) : (
               <button onClick={loginWithGoogle} style={{ pointerEvents: 'auto', background: '#fff', color: '#333', border: '2px solid #ddd', borderRadius: '25px', padding: '8px 20px', fontSize: '20px', fontFamily: "'VT323', monospace", cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.3)' }}>
-                <img src="https://cdn-icons-png.flaticon.com/512/3002/300221.png" alt="Google" style={{ width: '20px' }} />
+                <img src="/images/google.png" alt="Google" style={{ width: '20px' }} />
                 ĐĂNG NHẬP BẰNG GOOGLE
               </button>
             )}
