@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 import toast, { Toaster } from 'react-hot-toast';
 import { db, auth, googleProvider } from './firebase';
 import { collection, addDoc, query, where, orderBy, limit, getDocs, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from 'firebase/auth';
 
 const imageCache = {};
 const getImage = (src) => {
@@ -1258,6 +1258,12 @@ export default function Game() {
   }, [screen, uiUpdates.selectedBg]);
   // --- HỆ THỐNG ĐĂNG NHẬP GOOGLE ---
   useEffect(() => {
+    //BỔ SUNG: Bắt kết quả nếu người chơi vừa đăng nhập bằng Redirect trên điện thoại trả về
+    getRedirectResult(auth).then((result) => {
+      if (result && result.user) toast.success('Đăng nhập thành công!');
+    }).catch((error) => {
+      console.error("Lỗi redirect:", error);
+    });
     // Lắng nghe xem user đã đăng nhập hay chưa
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
@@ -1300,8 +1306,17 @@ export default function Game() {
 
   const loginWithGoogle = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
-      toast.success('Đăng nhập thành công!');
+      // BÍ QUYẾT: Phát hiện xem người chơi đang dùng Điện thoại hay Máy tính
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      
+      if (isMobile) {
+        // Trên điện thoại: Ép chuyển hướng thẳng sang trang Google (Không bị chặn)
+        await signInWithRedirect(auth, googleProvider);
+      } else {
+        // Trên máy tính: Dùng Popup cho mượt mà
+        await signInWithPopup(auth, googleProvider);
+        toast.success('Đăng nhập thành công!');
+      }
     } catch (error) {
       console.error("Lỗi đăng nhập:", error);
       toast.error('Đăng nhập thất bại!');
@@ -1443,17 +1458,22 @@ export default function Game() {
 
       {screen === 'menu' && (
         <div className="ui-layer">
-          <div style={{ position: 'absolute', top: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', zIndex: 100 }}>
+          <div style={{ position: 'absolute', top: '15px', right: '15px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px', zIndex: 100, maxWidth: '55vw' }}>
             {currentUser ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(0,0,0,0.6)', padding: '5px 15px', borderRadius: '50px', border: '2px solid #55efc4', pointerEvents: 'auto' }}>
-                <img src={currentUser.photoURL} alt="avatar" style={{ width: '30px', height: '30px', borderRadius: '50%' }} referrerPolicy="no-referrer" />
-                <span style={{ color: '#fff', fontSize: '20px', fontFamily: "'VT323', monospace" }}>{currentUser.displayName}</span>
-                <button onClick={logout} style={{ background: '#ff4757', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', padding: '2px 8px', fontFamily: "'VT323', monospace" }}>THOÁT</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(0,0,0,0.6)', padding: '5px 10px', borderRadius: '50px', border: '2px solid #55efc4', pointerEvents: 'auto', width: '100%' }}>
+                <img src={currentUser.photoURL} alt="avatar" style={{ width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0 }} referrerPolicy="no-referrer" />
+                
+                {/* 🚨 BÍ QUYẾT Ở ĐÂY: Ép tên dài thành dấu "..." */}
+                <span style={{ color: '#fff', fontSize: '18px', fontFamily: "'VT323', monospace", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                  {currentUser.displayName}
+                </span>
+
+                <button onClick={logout} style={{ background: '#ff4757', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', padding: '2px 8px', fontFamily: "'VT323', monospace", flexShrink: 0 }}>THOÁT</button>
               </div>
             ) : (
-              <button onClick={loginWithGoogle} style={{ pointerEvents: 'auto', background: '#fff', color: '#333', border: '2px solid #ddd', borderRadius: '25px', padding: '8px 20px', fontSize: '20px', fontFamily: "'VT323', monospace", cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.3)' }}>
-                <img src="/images/google.png" alt="Google" style={{ width: '20px' }} />
-                ĐĂNG NHẬP BẰNG GOOGLE
+              <button className="btn" onClick={loginWithGoogle} style={{ pointerEvents: 'auto', background: '#fff', color: '#333', border: '2px solid #ddd', borderRadius: '25px', padding: '8px 15px', fontSize: '16px', fontFamily: "'VT323', monospace", cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.3)' }}>
+                <img src="/images/google.png" alt="Google" style={{ width: '18px' }} />
+                ĐĂNG NHẬP
               </button>
             )}
           </div>
