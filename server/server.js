@@ -189,6 +189,6 @@ io.on('connection', (socket) => {
 app.get('*', (req, res) => {
   res.sendFile(path.join(clientPath, 'index.html'));
 });
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server đang chạy thành công tại PORT: ${PORT}`);
 });
