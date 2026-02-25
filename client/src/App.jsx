@@ -185,11 +185,12 @@ export default function Game() {
     const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || '/';
 
     socketRef.current = io(SOCKET_URL, {
+      transports: [ 'polling','websocket'],
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       reconnectionAttempts: 5,
-      transports: ['websocket', 'polling'] // Tối ưu hóa tốc độ truyền tải
+      timeout: 10000,
     });
 
     socketRef.current.on('room-created', (data) => {
