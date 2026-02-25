@@ -1548,7 +1548,7 @@ export default function Game() {
       )}
 
       {screen === 'shop' && (
-        <div className="ui-layer" style={{ background: 'rgba(0,0,0,0.95)', overflowY: 'auto' }}>
+        <div className="ui-layer" style={{ background: 'rgba(0,0,0,0.95)', overflowY: 'auto', justifyContent: 'flex-start', paddingTop: '40px', paddingBottom: '40px' }}>
           <div className="title" style={{ fontSize: '40px', marginTop: '20px' }}>KHO TRANG BỊ & SHOP</div>
           {/* --- THANH HIỂN THỊ TÀI SẢN TRONG SHOP --- */}
           <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', justifyContent: 'center' }}>
@@ -1674,7 +1674,7 @@ export default function Game() {
       )}
 
       {screen === 'leaderboard' && (
-        <div className="ui-layer" style={{ background: 'rgba(0,0,0,0.95)', zIndex: 50 }}>
+        <div className="ui-layer" style={{ background: 'rgba(0,0,0,0.95)', zIndex: 50, overflowY: 'auto', justifyContent: 'flex-start', paddingTop: '40px', paddingBottom: '40px' }}>
           <div className="title" style={{ fontSize: '40px' }}>BẢNG XẾP HẠNG</div>
           
           <div className="tab-container">
