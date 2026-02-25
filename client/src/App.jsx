@@ -181,14 +181,16 @@ export default function Game() {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     audioCtxRef.current = new AudioContext();
 
-    socketRef.current = io({
+    // Lấy URL Server từ file .env (Nếu không có thì mặc định kết nối nội bộ '/')
+    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || '/';
+
+    socketRef.current = io(SOCKET_URL, {
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5
+      reconnectionAttempts: 5,
+      transports: ['websocket', 'polling'] // Tối ưu hóa tốc độ truyền tải
     });
-    
-    //socketRef.current = io(import.meta.env.VITE_SOCKET_URL || '/', { ... });
 
     socketRef.current.on('room-created', (data) => {
       gsRef.current.roomCode = data.roomCode;
