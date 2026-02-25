@@ -1,22 +1,62 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import toast, { Toaster } from 'react-hot-toast';
+import { db, auth, googleProvider } from './firebase';
+import { collection, addDoc, query, where, orderBy, limit, getDocs, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 
+const imageCache = {};
+const getImage = (src) => {
+  if (!src) return null;
+  if (!imageCache[src]) {
+    const img = new Image();
+    img.src = src;
+    imageCache[src] = img;
+  }
+  return imageCache[src];
+};
 const SKINS = [
-  { id: 'classic', name: 'Classic', color: '#FFD700', imgSrc: 'https://cdn-icons-png.flaticon.com/512/616/616408.png' },
-  { id: 'ninja', name: 'Ninja', color: '#333', imgSrc: 'https://cdn-icons-png.flaticon.com/512/616/616430.png' },
-  { id: 'ufo', name: 'UFO Cat', color: '#00FF00', imgSrc: 'https://cdn-icons-png.flaticon.com/512/3069/3069172.png' },
-  { id: 'rocket', name: 'Rocket', color: 'white', imgSrc: null }
+  { 
+    id: 'classic', 
+    name: 'Mèo Sầu Bi', 
+    color: '#FFD700', 
+    imgAlive: '/images/cat_alive.png', 
+    imgDead: '/images/cat_dead.png', 
+    price: 0 
+  },
+  { 
+    id: 'dog', 
+    name: 'Cún Tinh Ngịch', 
+    color: '#FFD700', 
+    imgAlive: '/images/dog.png', 
+    imgDead: '/images/dog.png', 
+    price: 0 
+  },
+  { 
+    id: 'evilFly', 
+    name: 'Evil Fly', 
+    color: '#FFD700', 
+    imgAlive: '/images/evil_fly.png', 
+    imgDead: '/images/evil_fly.png', 
+    price: 200 
+  },
+  { 
+    id: 'ufo', 
+    name: 'UFO', 
+    color: '#FFD700', 
+    imgAlive: '/images/ufo.png', 
+    imgDead: '/images/ufo.png', 
+    price: 300 
+  },
 ];
 
 const BACKGROUNDS = [
-  { id: 'deep', name: 'Deep Space', top: '#0d0e15', bottom: '#0d0e15', stars: true },
-  { id: 'sunset', name: 'Sunset', top: '#2c3e50', bottom: '#fd746c', stars: true },
-  { id: 'forest', name: 'Midnight', top: '#000000', bottom: '#434343', stars: true },
-  { id: 'ocean', name: 'Ocean', top: '#1a2a6c', bottom: '#b21f1f', stars: false }
+  { id: 'deep', name: 'Deep Space', top: '#0d0e15', bottom: '#0d0e15', stars: true, price: 0 },
+  { id: 'sunset', name: 'Sunset', top: '#2c3e50', bottom: '#fd746c', stars: true, price: 50 },
+  { id: 'forest', name: 'Midnight', top: '#000000', bottom: '#434343', stars: true, price: 150 },
+  { id: 'ocean', name: 'Ocean', top: '#1a2a6c', bottom: '#b21f1f', stars: false, price: 200 }
 ];
 
-const API_URL = "https://script.google.com/macros/s/AKfycbx0wKxxxrJ3sQ5IjP8D13hdybk25RDQpmRo6rhBL4YPlT0RHXhxSTFZrdSyufH_nFE4/exec";
 const PIPE_DIST_DESKTOP = 250;
 const PIPE_DIST_MOBILE = 200;
 const MAX_Y_DIFF = 180;
@@ -63,6 +103,7 @@ export default function Game() {
   const [levelUpEffect, setLevelUpEffect] = useState(false);
   const [frameCount, setFrameCount] = useState(0);
   const [uiUpdates, setUIUpdates] = useState({ score: 0, level: 1 });
+  const [currentUser, setCurrentUser] = useState(null);
 
   const gsRef = useRef({
     canvas: null,
@@ -70,8 +111,18 @@ export default function Game() {
     frames: 0,
     score: 0,
     level: 1,
-    bestScore: parseInt(localStorage.getItem('astroCatBestScore') || '0'),
+    bestScore: 0,
     gameSpeed: 3,
+    coins: 0,
+    lives: 5,
+    inventory: {
+      skins: ['classic'], // Mặc định có skin classic
+      bgs: ['deep']       // Mặc định có bối cảnh deep
+    },
+    items: {
+      shield: 0, // Số lượng khiên đang có
+      revive: 0  // Số lượng hồi sinh đang có
+    },
     isGameOver: false,
     isPlaying: false,
     isPaused: false,
@@ -86,7 +137,7 @@ export default function Game() {
     pipeDistance: PIPE_DIST_DESKTOP,
     roomCode: null,
     lastFrameTime: 0,
-    userSettings: JSON.parse(localStorage.getItem('astroCatSettings') || '{"skin":"classic","bg":"deep"}'),
+    userSettings: { skin: 'classic', bg: 'deep' },
 
     cat: {
       x: 50,
@@ -280,11 +331,17 @@ export default function Game() {
       initialTop: topHeight
     });
 
-    if (Math.random() < 0.3) {
+    // Tỉ lệ rớt đồ: 40% (Trong đó: 20% Xu, 10% Khiên, 10% Sao)
+    if (Math.random() < 0.4) {
+      const randType = Math.random();
+      let pType = 'COIN';
+      if (randType > 0.75) pType = 'SHIELD';
+      else if (randType > 0.5) pType = 'STAR';
+
       gs.powerUps.push({
         x: xPos + 30,
         y: topHeight + currentGap / 2,
-        type: Math.random() > 0.5 ? 'SHIELD' : 'STAR',
+        type: pType,
         active: true
       });
     }
@@ -295,7 +352,14 @@ export default function Game() {
     if (gs.isGameOver) return;
     gs.isGameOver = true;
     Sound.hit();
-
+    if (gs.score > gs.bestScore) gs.bestScore = gs.score;
+    
+    // Trừ 1 mạng và Lưu mây ngay lập tức
+    if (currentUser && gs.lives > 0) {
+      gs.lives -= 1;
+      setUIUpdates(prev => ({ ...prev, lives: gs.lives }));
+      saveUserProfile(); 
+    }
     if (gs.score > gs.bestScore) {
       gs.bestScore = gs.score;
       localStorage.setItem('astroCatBestScore', gs.bestScore);
@@ -353,7 +417,7 @@ export default function Game() {
     }
   };
 
-  const submitScore = (mode = 'single', isAuto = false) => {
+  const submitScore = async (mode = 'single', isAuto = false) => {
     const gs = gsRef.current;
     let name = '';
     let scoreToSend = gs.score;
@@ -371,73 +435,96 @@ export default function Game() {
       }
     }
 
-    const loadingToast = toast.loading('💾 Đang lưu điểm...');
+    const loadingToast = toast.loading('💾 Đang lưu điểm lên Firebase...');
 
-    fetch(API_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, score: scoreToSend, ip: gs.userIP, mode: mode })
-    }).then(() => {
+    try {
+      // Ghi dữ liệu vào collection "leaderboard" của Firestore
+      await addDoc(collection(db, "leaderboard"), {
+        name: name,
+        score: scoreToSend,
+        mode: mode,
+        timestamp: new Date()
+      });
+
       toast.dismiss(loadingToast);
       toast.success('✅ Đã lưu thành công!');
+      
       if (!isAuto) {
         const form = document.getElementById('submitForm');
         const succ = document.getElementById('submitSuccess');
         if (form) form.classList.add('hidden');
         if (succ) succ.classList.remove('hidden');
-        setTimeout(() => openLeaderboard(mode), 1500);
+        setTimeout(() => openLeaderboard(mode), 1000);
       }
-    }).catch(err => {
+    } catch (err) {
       toast.dismiss(loadingToast);
-      toast.error('❌ Lỗi lưu điểm! Thử lại sau.');
-      console.error(err);
-    });
+      toast.error('❌ Lỗi lưu điểm! Vui lòng thử lại.');
+      console.error("Firebase Error:", err);
+    }
   };
 
-  const openLeaderboard = (mode = 'single') => {
+  const openLeaderboard = async (mode = 'single') => {
     setLeaderboardMode(mode);
     setIsLoadingLeaderboard(true);
     setLeaderboardData([]);
-    fetch(API_URL + '?mode=' + mode)
-      .then(response => response.json())
-      .then(data => {
-        setLeaderboardData(data || []);
-        setIsLoadingLeaderboard(false);
-      })
-      .catch(err => {
-        console.error(err);
-        setLeaderboardData([]);
-        setIsLoadingLeaderboard(false);
-      });
     setScreen('leaderboard');
+
+    try {
+      // Truy vấn Firebase: Lấy top 10 điểm cao nhất theo mode
+      const q = query(
+        collection(db, "leaderboard"), 
+        where("mode", "==", mode), 
+        orderBy("score", "desc"), 
+        limit(10)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      const data = [];
+      querySnapshot.forEach((doc) => {
+        data.push(doc.data());
+      });
+      
+      setLeaderboardData(data);
+    } catch (err) {
+      console.error("Firebase Query Error:", err);
+      setLeaderboardData([]);
+    }
+    setIsLoadingLeaderboard(false);
   };
 
   const loadTopRecords = () => {
-    const fetchTop = (mode, key) => {
-      fetch(API_URL + '?mode=' + mode)
-        .then(res => res.json())
-        .then(data => {
-          if (data && data.length > 0) {
-            let name = data[0].name;
-            if (mode === 'pvp' && name.length > 25) name = name.substring(0, 25) + '...';
-            const displayText =
-              mode === 'single'
-                ? `${name} - ${data[0].score}`
-                : `${name} (${data[0].score})`;
-            setTopRecords(prev => ({ ...prev, [key]: displayText }));
-          } else {
-            setTopRecords(prev => ({ ...prev, [key]: 'Chưa có' }));
-          }
-        })
-        .catch(() => {
-          setTopRecords(prev => ({ ...prev, [key]: 'Lỗi tải' }));
-        });
+    const fetchTop = async (mode, key) => {
+      try {
+        const q = query(
+          collection(db, "leaderboard"), 
+          where("mode", "==", mode), 
+          orderBy("score", "desc"), 
+          limit(1)
+        );
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+          const topData = querySnapshot.docs[0].data();
+          let name = topData.name;
+          if (mode === 'pvp' && name.length > 25) name = name.substring(0, 25) + '...';
+          
+          const displayText = mode === 'single'
+                ? `${name} - ${topData.score}`
+                : `${name} (${topData.score})`;
+          setTopRecords(prev => ({ ...prev, [key]: displayText }));
+        } else {
+          setTopRecords(prev => ({ ...prev, [key]: 'Chưa có' }));
+        }
+      } catch (error) {
+        console.error("Top records error:", error);
+        setTopRecords(prev => ({ ...prev, [key]: 'Lỗi tải' }));
+      }
     };
+
     fetchTop('single', 'single');
     fetchTop('pvp', 'pvp');
   };
-
+ 
   const createRoom = () => {
     const nameInput = document.getElementById('lobbyNameInput');
     const name = nameInput ? nameInput.value.trim() : '';
@@ -598,6 +685,10 @@ export default function Game() {
   };
 
   const startGame = (mode) => {
+    if (currentUser && gsRef.current.lives <= 0) {
+      toast.error('❌ Bạn đã hết mạng! Hãy chờ đến ngày mai hoặc Mua thêm.');
+      return;
+    }
     gsRef.current.gameMode = mode;
     gsRef.current.isPlaying = true;
     gsRef.current.isGameOver = false;
@@ -672,18 +763,28 @@ export default function Game() {
     ctx.save();
     ctx.translate(cat.x, cat.y);
 
+    // Xử lý góc xoay của nhân vật
     const targetRotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, cat.velocity * 0.1));
-    if (gs.isGameOver) cat.rotation += 0.2;
-    else cat.rotation = targetRotation;
+    if (gs.isGameOver) {
+      cat.rotation += 0.2; // Nếu chết, xoay tròn lộn nhào rơi xuống
+    } else {
+      cat.rotation = targetRotation;
+    }
     ctx.rotate(cat.rotation);
 
-    const skin = SKINS.find(s => s.id === gs.userSettings.skin) || SKINS[0];
-    const img = loadedImagesRef.current[gs.userSettings.skin];
+    const currentSkin = SKINS.find(s => s.id === gs.userSettings.skin) || SKINS[0];
+    
+    // --- BÍ QUYẾT Ở ĐÂY: CHỌN ẢNH THEO TRẠNG THÁI ---
+    const catSrc = gs.isGameOver ? currentSkin.imgDead : currentSkin.imgAlive;
+    const catImg = getImage(catSrc);
 
-    if (img && img.complete && img.naturalWidth !== 0) {
+    // Nếu ảnh có tồn tại và đã tải xong thì vẽ ảnh
+    if (catImg && catImg.complete && catImg.naturalWidth !== 0) {
       const size = cat.radius * 2.8;
-      ctx.drawImage(img, -size / 2, -size / 2, size, size);
-      if (cat.isInvincible) {
+      ctx.drawImage(catImg, -size / 2, -size / 2, size, size);
+      
+      // Vẽ vòng bảo vệ nếu có khiên
+      if (cat.isInvincible && !gs.isGameOver) {
         ctx.beginPath();
         ctx.arc(0, 0, cat.radius + 5, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(0, 255, 255, ${Math.random() * 0.8})`;
@@ -691,43 +792,21 @@ export default function Game() {
         ctx.stroke();
       }
     } else {
-      const mainColor = skin.color;
-      ctx.beginPath();
-      ctx.moveTo(-10, 5);
-      ctx.lineTo(-25 - Math.random() * 5, 0);
-      ctx.lineTo(-10, -5);
-      ctx.fillStyle = '#ff4757';
-      ctx.fill();
-
-      if (cat.isInvincible) {
-        ctx.beginPath();
-        ctx.arc(0, 0, 30, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(0, 255, 255, ${Math.random() * 0.8})`;
-        ctx.lineWidth = 3;
-        ctx.stroke();
-      }
-
+      // Fallback: Vẽ hình tròn dự phòng nếu chưa có ảnh
+      const mainColor = currentSkin.color;
       ctx.beginPath();
       ctx.arc(0, 0, cat.radius, 0, Math.PI * 2);
       ctx.fillStyle = mainColor;
       ctx.fill();
       ctx.stroke();
 
-      ctx.beginPath();
-      ctx.ellipse(5, -5, 8, 5, 0, 0, Math.PI * 2);
-      ctx.fillStyle = '#87CEEB';
-      ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(-5, -12);
-      ctx.lineTo(0, -22);
-      ctx.lineTo(5, -12);
-      ctx.fillStyle = mainColor;
-      ctx.fill();
-      ctx.stroke();
+      // Vẽ mắt X khi chết (đối với hình tròn dự phòng)
+      if (gs.isGameOver) {
+        ctx.fillStyle = '#000';
+        ctx.font = '14px Arial';
+        ctx.fillText('x', -8, 4);
+        ctx.fillText('x', 2, 4);
+      }
     }
 
     ctx.restore();
@@ -877,30 +956,34 @@ export default function Game() {
       if (p.active) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
+        
+        // Vẽ icon tùy loại
         if (p.type === 'SHIELD') {
-          ctx.fillStyle = '#00FFFF';
-          ctx.font = '20px Arial';
-          ctx.fillText('🛡️', p.x - 10, p.y + 5);
-        } else {
-          ctx.fillStyle = '#FFFF00';
-          ctx.font = '20px Arial';
-          ctx.fillText('⭐', p.x - 10, p.y + 5);
+          ctx.fillStyle = '#00FFFF'; ctx.font = '20px Arial'; ctx.fillText('🛡️', p.x - 10, p.y + 5);
+        } else if (p.type === 'STAR') {
+          ctx.fillStyle = '#FFFF00'; ctx.font = '20px Arial'; ctx.fillText('⭐', p.x - 10, p.y + 5);
+        } else if (p.type === 'COIN') {
+          ctx.fillStyle = '#FFD700'; ctx.font = '20px Arial'; ctx.fillText('🪙', p.x - 10, p.y + 5);
         }
+        
         ctx.globalAlpha = 0.5 + Math.sin(gs.frames * 0.1) * 0.4;
-        ctx.fill();
-        ctx.globalAlpha = 1;
+        ctx.fill(); ctx.globalAlpha = 1;
 
+        // Xử lý khi Mèo chạm Vật phẩm
         if (Math.hypot(gs.cat.x - p.x, gs.cat.y - p.y) < gs.cat.radius + 15 && !gs.isGameOver) {
           p.active = false;
           Sound.powerUp();
-          createParticles(p.x, p.y, p.type === 'SHIELD' ? '#00FFFF' : '#FFFF00', 10);
+          createParticles(p.x, p.y, p.type === 'SHIELD' ? '#00FFFF' : '#FFD700', 10);
 
           if (p.type === 'SHIELD') {
             gs.cat.isInvincible = true;
             gs.cat.invincibleTimer = 300;
-          } else {
+          } else if (p.type === 'STAR') {
             gs.score += 5;
             setUIUpdates(prev => ({ ...prev, score: gs.score }));
+          } else if (p.type === 'COIN') {
+            gs.coins += 1; // Ăn 1 đồng = 1 Xu
+            setUIUpdates(prev => ({ ...prev, coins: gs.coins }));
           }
         }
       }
@@ -1125,6 +1208,148 @@ export default function Game() {
       if (menuAnimId) cancelAnimationFrame(menuAnimId);
     };
   }, [screen, uiUpdates.selectedBg]);
+  // --- HỆ THỐNG ĐĂNG NHẬP GOOGLE ---
+  useEffect(() => {
+    // Lắng nghe xem user đã đăng nhập hay chưa (tự động nhớ đăng nhập khi F5)
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setCurrentUser(user);
+      if (user) {
+        gsRef.current.myName = user.displayName; // Cập nhật tên vào game
+        await loadUserProfile(user);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const loginWithGoogle = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+      toast.success('Đăng nhập thành công!');
+    } catch (error) {
+      console.error("Lỗi đăng nhập:", error);
+      toast.error('Đăng nhập thất bại!');
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      toast.success('Đã đăng xuất!');
+    } catch (error) {
+      console.error("Lỗi đăng xuất:", error);
+    }
+  };
+  // --- TẢI HỒ SƠ TỪ FIREBASE (Hồi 1 mạng mỗi 4 tiếng) ---
+  const loadUserProfile = async (user) => {
+    if (!user) return;
+    const userRef = doc(db, "users", user.uid);
+    const snap = await getDoc(userRef);
+
+    if (snap.exists()) {
+      const data = snap.data();
+      let currentLives = data.lives !== undefined ? data.lives : 5;
+      let updatedAt = data.livesUpdatedAt || Date.now();
+
+      // THUẬT TOÁN HỒI MẠNG ĐỒNG ĐỀU: 4 TIẾNG / 1 MẠNG (14,400,000 mili-giây)
+      const REGEN_TIME = 4 * 60 * 60 * 1000; 
+
+      if (currentLives < 5) {
+        let now = Date.now();
+        let timePassed = now - updatedAt;
+        let livesToRecover = Math.floor(timePassed / REGEN_TIME);
+
+        if (livesToRecover > 0) {
+          currentLives += livesToRecover;
+          if (currentLives >= 5) {
+            currentLives = 5;
+            updatedAt = now; // Nếu đầy thì mốc thời gian là hiện tại
+          } else {
+            updatedAt += livesToRecover * REGEN_TIME; // Giữ lại số phút dư chưa đủ 4 tiếng
+          }
+        }
+      } else {
+        updatedAt = Date.now();
+      }
+
+      gsRef.current.bestScore = data.highScore || 0;
+      gsRef.current.coins = data.coins || 0;
+      gsRef.current.lives = currentLives;
+      gsRef.current.livesUpdatedAt = updatedAt;
+      gsRef.current.inventory = data.inventory || { skins: ['classic'], bgs: ['deep'] };
+      gsRef.current.userSettings = data.equipped || { skin: 'classic', bg: 'deep' };
+      
+      setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins, lives: gsRef.current.lives }));
+      saveUserProfile(); 
+    } else {
+      const newProfile = {
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+        highScore: 0,
+        coins: 0,
+        lives: 5,
+        livesUpdatedAt: Date.now(),
+        inventory: { skins: ['classic'], bgs: ['deep'] },
+        equipped: { skin: 'classic', bg: 'deep' },
+      };
+      await setDoc(userRef, newProfile);
+      gsRef.current = { ...gsRef.current, ...newProfile };
+      setUIUpdates(prev => ({ ...prev, coins: 0, lives: 5 }));
+    }
+  };
+
+  // --- LƯU HỒ SƠ LÊN FIREBASE ---
+  const saveUserProfile = async () => {
+    if (!currentUser) return; 
+    const userRef = doc(db, "users", currentUser.uid);
+    await updateDoc(userRef, {
+      displayName: currentUser.displayName,
+      photoURL: currentUser.photoURL,
+      highScore: gsRef.current.bestScore,
+      coins: gsRef.current.coins,
+      lives: gsRef.current.lives,
+      lastLifeReset: gsRef.current.lastLifeReset || Date.now(),
+      inventory: gsRef.current.inventory,
+      equipped: gsRef.current.userSettings,
+    });
+  };
+  // --- STATE KHÓA MÀN HÌNH KHI ĐANG XEM QUẢNG CÁO ---
+  const [isWatchingAd, setIsWatchingAd] = useState(false);
+
+  // --- HÀM XỬ LÝ XEM QUẢNG CÁO TẶNG THƯỞNG ---
+  const watchAd = (rewardType) => {
+    if (!currentUser) {
+      toast.error("Vui lòng đăng nhập để nhận thưởng!");
+      return;
+    }
+    if (rewardType === 'life' && gsRef.current.lives >= 5) {
+      toast.error('Túi mạng đã đầy 5/5. Bạn không cần xem thêm!');
+      return; // Lệnh return này sẽ hủy luôn việc phát quảng cáo
+    }
+    if (isWatchingAd) return;
+
+    setIsWatchingAd(true);
+    const adToast = toast.loading('📺 Đang phát quảng cáo... (Vui lòng đợi 3s)', { duration: 4000 });
+
+    // MÔ PHỎNG THỜI GIAN CHẠY QUẢNG CÁO LÀ 3 GIÂY
+    // (Sau này build APK sẽ thay bằng lệnh: await AdMob.showRewardVideoAd())
+    setTimeout(() => {
+      toast.dismiss(adToast);
+      setIsWatchingAd(false);
+
+      if (rewardType === 'coin') {
+        gsRef.current.coins += 50; // Thưởng 50 Xu
+        setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins }));
+        toast.success('🎁 Phần thưởng: +50 XU!');
+      } else if (rewardType === 'life') {
+        gsRef.current.lives += 1;  // Thưởng 1 Mạng
+        setUIUpdates(prev => ({ ...prev, lives: gsRef.current.lives }));
+        toast.success('❤️ Phần thưởng: +1 MẠNG!');
+      }
+      
+      // Lưu ngay lên đám mây để chống gian lận tắt trình duyệt
+      saveUserProfile(); 
+    }, 3000);
+  };
   return (
     <div style={{ width: '100%', height: '100vh', position: 'relative', backgroundColor: '#0d0e15' }}>
       <canvas
@@ -1135,6 +1360,32 @@ export default function Game() {
 
       {screen === 'menu' && (
         <div className="ui-layer">
+          <div style={{ position: 'absolute', top: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', zIndex: 100 }}>
+            {currentUser ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(0,0,0,0.6)', padding: '5px 15px', borderRadius: '50px', border: '2px solid #55efc4', pointerEvents: 'auto' }}>
+                <img src={currentUser.photoURL} alt="avatar" style={{ width: '30px', height: '30px', borderRadius: '50%' }} referrerPolicy="no-referrer" />
+                <span style={{ color: '#fff', fontSize: '20px', fontFamily: "'VT323', monospace" }}>{currentUser.displayName}</span>
+                <button onClick={logout} style={{ background: '#ff4757', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', padding: '2px 8px', fontFamily: "'VT323', monospace" }}>THOÁT</button>
+              </div>
+            ) : (
+              <button onClick={loginWithGoogle} style={{ pointerEvents: 'auto', background: '#fff', color: '#333', border: '2px solid #ddd', borderRadius: '25px', padding: '8px 20px', fontSize: '20px', fontFamily: "'VT323', monospace", cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.3)' }}>
+                <img src="https://cdn-icons-png.flaticon.com/512/3002/300221.png" alt="Google" style={{ width: '20px' }} />
+                ĐĂNG NHẬP BẰNG GOOGLE
+              </button>
+            )}
+          </div>
+          {currentUser && (
+            <div style={{ position: 'absolute', top: '20px', left: '20px', display: 'flex', flexDirection: 'column', gap: '5px', pointerEvents: 'auto' }}>
+              <div style={{ background: 'rgba(0,0,0,0.6)', padding: '5px 15px', borderRadius: '10px', color: '#FFD700', fontSize: '24px', border: '2px solid #FFD700', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <img src="https://cdn-icons-png.flaticon.com/512/3174/3174350.png" alt="coin" style={{ width: '25px' }} />
+                {uiUpdates.coins || 0}
+              </div>
+              <div style={{ background: 'rgba(0,0,0,0.6)', padding: '5px 15px', borderRadius: '10px', color: '#ff4757', fontSize: '24px', border: '2px solid #ff4757', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <img src="https://cdn-icons-png.flaticon.com/512/833/833472.png" alt="heart" style={{ width: '25px' }} />
+                {uiUpdates.lives || 0}
+              </div>
+            </div>
+          )}
           <div className="title">ASTRO CAT 5</div>
           <div className="subtitle">Ultimate Online + Socket.io</div>
 
@@ -1149,6 +1400,7 @@ export default function Game() {
             <div style={{ marginBottom: '8px', color: '#fff' }}>🏆 Top Đơn: <span style={{ color: '#FFD700', fontWeight: 'bold' }}>{topRecords.single}</span></div>
             <div style={{ color: '#fff' }}>⚔️ Top PvP: <span style={{ color: '#00FFFF', fontWeight: 'bold' }}>{topRecords.pvp}</span></div>
           </div>
+          
         </div>
       )}
 
@@ -1180,53 +1432,128 @@ export default function Game() {
       )}
 
       {screen === 'shop' && (
-        <div className="ui-layer">
-          <div className="title" style={{ fontSize: '50px' }}>KHO TRANG BỊ</div>
-          <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
+        <div className="ui-layer" style={{ background: 'rgba(0,0,0,0.95)', overflowY: 'auto' }}>
+          <div className="title" style={{ fontSize: '40px', marginTop: '20px' }}>KHO TRANG BỊ & SHOP</div>
+          {/* --- THANH HIỂN THỊ TÀI SẢN TRONG SHOP --- */}
+          <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', justifyContent: 'center' }}>
+            <div style={{ background: 'rgba(0,0,0,0.6)', padding: '5px 20px', borderRadius: '12px', color: '#FFD700', fontSize: '24px', border: '2px solid #FFD700', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 0 10px rgba(255,215,0,0.2)' }}>
+              <span style={{ fontSize: '26px' }}>🪙</span> 
+              <span style={{ fontFamily: "'VT323', monospace", fontWeight: 'bold' }}>{uiUpdates.coins || 0}</span>
+            </div>
             
-            {/* --- CỘT CHỌN SKIN --- */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <div style={{ color: '#FFD700', fontSize: '28px' }}>CHỌN SKIN</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginTop: '10px' }}>
-                {SKINS.map(s => (
-                  <div 
-                    key={s.id} 
-                    className="shop-item" // BẮT BUỘC CÓ ĐỂ CLICK ĐƯỢC TRÊN MOBILE
-                    onClick={() => selectSkin(s.id)} 
-                    style={{ pointerEvents: 'auto', border: '2px solid #555', background: '#333', width: '90px', height: '90px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', borderRadius: '5px', flexDirection: 'column', overflow: 'hidden', borderColor: gsRef.current.userSettings.skin === s.id ? '#FFD700' : '#555', borderWidth: gsRef.current.userSettings.skin === s.id ? '3px' : '2px', boxShadow: gsRef.current.userSettings.skin === s.id ? '0 0 15px #FFD700' : 'none' }}
-                  >
-                    {/* KIỂM TRA: Nếu có link ảnh thì hiện ảnh, không thì hiện icon tròn */}
-                    {s.imgSrc ? (
-                        <img src={s.imgSrc} alt={s.name} style={{ width: '50px', height: '50px', objectFit: 'contain', marginBottom: '5px' }} />
-                    ) : (
-                        <div style={{ fontSize: '30px', marginBottom: '5px', color: s.color }}>🐱</div>
-                    )}
-                    <div style={{ fontSize: '16px', color: '#ccc' }}>{s.name}</div>
-                  </div>
-                ))}
+            <div style={{ background: 'rgba(0,0,0,0.6)', padding: '5px 20px', borderRadius: '12px', color: '#ff4757', fontSize: '24px', border: '2px solid #ff4757', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 0 10px rgba(255,71,87,0.2)' }}>
+              <span style={{ fontSize: '26px' }}>❤️</span> 
+              <span style={{ fontFamily: "'VT323', monospace", fontWeight: 'bold' }}>{uiUpdates.lives || 0}/5</span>
+            </div>
+          </div>
+          
+          <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', flexWrap: 'wrap', justifyContent: 'center', width: '90%', maxWidth: '800px' }}>
+            
+            {/* --- CỘT SKIN --- */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '15px' }}>
+              <div style={{ color: '#FFD700', fontSize: '28px', marginBottom: '10px' }}>SKIN MÈO</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+                {SKINS.map(s => {
+                  const isOwned = gsRef.current.inventory?.skins.includes(s.id);
+                  const isEquipped = gsRef.current.userSettings.skin === s.id;
+                  return (
+                    <div key={s.id} className="shop-item" onClick={() => {
+                        // SỬ DỤNG HÀM selectSkin ĐỂ CẬP NHẬT GIAO DIỆN NGAY LẬP TỨC
+                        if (isOwned) {
+                          selectSkin(s.id); 
+                          saveUserProfile();
+                        } else if (gsRef.current.coins >= s.price) {
+                          gsRef.current.coins -= s.price; 
+                          gsRef.current.inventory.skins.push(s.id); 
+                          selectSkin(s.id);
+                          setUIUpdates(prev => ({...prev, coins: gsRef.current.coins})); 
+                          saveUserProfile(); 
+                          toast.success(`Đã mua ${s.name}!`);
+                        } else toast.error("Không đủ Xu!");
+                      }} 
+                      style={{ pointerEvents: 'auto', border: isEquipped ? '3px solid #FFD700' : '2px solid #555', background: '#333', width: '90px', height: '110px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', borderRadius: '8px', flexDirection: 'column', boxShadow: isEquipped ? '0 0 15px #FFD700' : 'none' }}
+                    >
+                      {/* SỬA LẠI ĐỂ TÌM ẢNH imgAlive HOẶC imgSrc */}
+                      {s.imgAlive || s.imgSrc ? <img src={s.imgAlive || s.imgSrc} alt={s.name} style={{ width: '45px', height: '45px', objectFit: 'contain', imageRendering: 'pixelated' }} /> : <div style={{ fontSize: '30px', color: s.color }}>🐱</div>}
+                      <div style={{ fontSize: '14px', color: '#ccc', marginTop: '5px', textAlign: 'center' }}>{s.name}</div>
+                      <div style={{ fontSize: '14px', color: isOwned ? '#2ed573' : '#FFD700', fontWeight: 'bold' }}>{isOwned ? (isEquipped ? 'ĐANG MẶC' : 'SẴN SÀNG') : `🪙 ${s.price}`}</div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
 
-            {/* --- CỘT CHỌN BỐI CẢNH --- */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <div style={{ color: '#00FFFF', fontSize: '28px' }}>BỐI CẢNH</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginTop: '10px' }}>
-                {BACKGROUNDS.map(b => (
-                  <div 
-                    key={b.id} 
-                    className="shop-item" // BẮT BUỘC CÓ ĐỂ CLICK ĐƯỢC TRÊN MOBILE
-                    onClick={() => selectBg(b.id)} 
-                    style={{ pointerEvents: 'auto', border: '2px solid #555', background: '#333', width: '90px', height: '90px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', borderRadius: '5px', flexDirection: 'column', overflow: 'hidden', borderColor: gsRef.current.userSettings.bg === b.id ? '#FFD700' : '#555', borderWidth: gsRef.current.userSettings.bg === b.id ? '3px' : '2px', boxShadow: gsRef.current.userSettings.bg === b.id ? '0 0 15px #FFD700' : 'none' }}
-                  >
-                    <div style={{ background: `linear-gradient(to bottom, ${b.top}, ${b.bottom})`, width: '30px', height: '30px', borderRadius: '50%' }}></div>
-                    <div style={{ fontSize: '16px', color: '#ccc', marginTop: '5px' }}>{b.name}</div>
-                  </div>
-                ))}
+            {/* --- CỘT BACKGROUND --- */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '15px' }}>
+              <div style={{ color: '#00FFFF', fontSize: '28px', marginBottom: '10px' }}>BỐI CẢNH</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+                {BACKGROUNDS.map(b => {
+                  const isOwned = gsRef.current.inventory?.bgs.includes(b.id);
+                  const isEquipped = gsRef.current.userSettings.bg === b.id;
+                  return (
+                    <div key={b.id} className="shop-item" onClick={() => {
+                        // SỬ DỤNG HÀM selectBg ĐỂ NỀN VÀ SAO THAY ĐỔI NGAY LẬP TỨC PHÍA SAU
+                        if (isOwned) {
+                          selectBg(b.id); 
+                          saveUserProfile();
+                        } else if (gsRef.current.coins >= b.price) {
+                          gsRef.current.coins -= b.price; 
+                          gsRef.current.inventory.bgs.push(b.id); 
+                          selectBg(b.id);
+                          setUIUpdates(prev => ({...prev, coins: gsRef.current.coins})); 
+                          saveUserProfile(); 
+                          toast.success(`Đã mua ${b.name}!`);
+                        } else toast.error("Không đủ Xu!");
+                      }} 
+                      style={{ pointerEvents: 'auto', border: isEquipped ? '3px solid #00FFFF' : '2px solid #555', background: '#333', width: '90px', height: '110px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', borderRadius: '8px', flexDirection: 'column', boxShadow: isEquipped ? '0 0 15px #00FFFF' : 'none' }}
+                    >
+                      <div style={{ background: `linear-gradient(to bottom, ${b.top}, ${b.bottom})`, width: '30px', height: '30px', borderRadius: '50%', border: '1px solid #fff' }}></div>
+                      <div style={{ fontSize: '14px', color: '#ccc', marginTop: '5px', textAlign: 'center' }}>{b.name}</div>
+                      <div style={{ fontSize: '14px', color: isOwned ? '#2ed573' : '#FFD700', fontWeight: 'bold' }}>{isOwned ? (isEquipped ? 'ĐANG DÙNG' : 'SẴN SÀNG') : `🪙 ${b.price}`}</div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
-            
+
+            {/* CỘT VẬT PHẨM & QUẢNG CÁO */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '15px', width: '100%', maxWidth: '250px' }}>
+              <div style={{ color: '#ff4757', fontSize: '28px', marginBottom: '5px' }}>TIỆN ÍCH</div>
+              
+              {/* Nút Mua Mạng bằng Xu */}
+              <div className="shop-item" onClick={() => {
+                  if (gsRef.current.coins >= 50) {
+                    gsRef.current.coins -= 50; gsRef.current.lives += 1;
+                    setUIUpdates(prev => ({...prev, coins: gsRef.current.coins, lives: gsRef.current.lives})); saveUserProfile(); toast.success("Đã mua 1 Mạng!");
+                  } else toast.error("Không đủ Xu!");
+                }} 
+                style={{ pointerEvents: 'auto', border: '2px solid #ff4757', background: '#333', width: '100%', height: '80px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', borderRadius: '8px', flexDirection: 'column' }}
+              >
+                <div style={{ fontSize: '18px', color: '#fff' }}>❤️ +1 MẠNG CHƠI</div>
+                <div style={{ fontSize: '18px', color: '#FFD700', fontWeight: 'bold' }}>🪙 MUA: 50 XU</div>
+              </div>
+
+              <div style={{ width: '100%', height: '1px', background: '#555', margin: '5px 0' }}></div>
+
+              {/* Nút Xem Quảng Cáo lấy Xu */}
+              <div className="shop-item" onClick={() => watchAd('coin')}
+                style={{ pointerEvents: isWatchingAd ? 'none' : 'auto', opacity: isWatchingAd ? 0.5 : 1, border: '2px solid #2ed573', background: '#2ed573', width: '100%', height: '50px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', borderRadius: '8px', flexDirection: 'row', gap: '10px' }}
+              >
+                <div style={{ fontSize: '24px' }}>📺</div>
+                <div style={{ fontSize: '18px', color: 'rgb(255, 215, 0)', fontWeight: 'bold' }}>FREE 50 XU</div>
+              </div>
+
+              {/* Nút Xem Quảng Cáo lấy Mạng */}
+              <div className="shop-item" onClick={() => watchAd('life')}
+                style={{ pointerEvents: isWatchingAd ? 'none' : 'auto', opacity: isWatchingAd ? 0.5 : 1, border: '2px solid #ff4757', background: '#ff4757', width: '100%', height: '50px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', borderRadius: '8px', flexDirection: 'row', gap: '10px' }}
+              >
+                <div style={{ fontSize: '24px' }}>📺</div>
+                <div style={{ fontSize: '18px', color: '#fff', fontWeight: 'bold' }}>FREE 1 MẠNG</div>
+              </div>
+            </div>
+
           </div>
-          <button className="btn btn-green" onClick={closeShop}>XÁC NHẬN</button>
+          <button className="btn btn-red" onClick={() => setScreen('menu')} style={{ width: '80%', maxWidth: '300px', marginTop: '10px' }}>ĐÓNG CỬA HÀNG</button>
         </div>
       )}
 
