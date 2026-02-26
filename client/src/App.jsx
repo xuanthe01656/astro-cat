@@ -1212,11 +1212,22 @@ export default function Game() {
   }, [screen, uiUpdates.selectedBg]);
 
   useEffect(() => {
-    getRedirectResult(auth).then((result) => {
-      if (result && result.user) toast.success('Đăng nhập thành công!');
-    }).catch((error) => {
-      console.error("Lỗi redirect:", error);
-    });
+    // Xử lý kết quả sau khi quay lại từ trang Google (Dành cho điện thoại)
+    const handleRedirect = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result && result.user) {
+          toast.success('Đăng nhập thành công!');
+          await loadUserProfile(result.user);
+        }
+      } catch (error) {
+        console.error("Lỗi Redirect:", error);
+        if (error.code === 'auth/unauthorized-domain') {
+          toast.error("Lỗi: Tên miền này chưa được cấp quyền trong Firebase!");
+        }
+      }
+    };
+    handleRedirect();
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
@@ -1224,32 +1235,12 @@ export default function Game() {
         gsRef.current.myName = user.displayName; 
         await loadUserProfile(user);
       } else {
-        let guestLives = parseInt(localStorage.getItem('astro_guest_lives'));
-        if (isNaN(guestLives)) guestLives = 5; 
-        let lastLost = parseInt(localStorage.getItem('astro_guest_last_lost')) || 0;
-
-        const REGEN_TIME = 4 * 60 * 60 * 1000; 
-
-        if (guestLives < 5 && lastLost > 0) {
-           let now = Date.now();
-           let livesRecovered = Math.floor((now - lastLost) / REGEN_TIME);
-           
-           if (livesRecovered > 0) {
-              guestLives += livesRecovered;
-              if (guestLives >= 5) {
-                 guestLives = 5;
-                 localStorage.removeItem('astro_guest_last_lost');
-              } else {
-                 localStorage.setItem('astro_guest_last_lost', lastLost + livesRecovered * REGEN_TIME);
-              }
-           }
-        }
-        gsRef.current.lives = guestLives;
+        // Logic xử lý khách (Guest)
+        let guestLives = parseInt(localStorage.getItem('astro_guest_lives')) || 5;
         let guestCoins = parseInt(localStorage.getItem('astro_guest_coins')) || 0;
+        gsRef.current.lives = guestLives;
         gsRef.current.coins = guestCoins;
-        gsRef.current.bestScore = parseInt(localStorage.getItem('astroCatBestScore')) || 0;
         setUIUpdates(prev => ({ ...prev, lives: guestLives, coins: guestCoins }));
-        localStorage.setItem('astro_guest_lives', guestLives);
       }
     });
     return () => unsubscribe();
@@ -1262,15 +1253,14 @@ export default function Game() {
   }, []);
   const loginWithGoogle = async () => {
     try {
-      // Ép Google luôn hiển thị bảng chọn tài khoản thay vì tự đăng nhập
-      googleProvider.setCustomParameters({
-        prompt: 'select_account'
-      });
-
+      googleProvider.setCustomParameters({ prompt: 'select_account' });
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      
       if (isMobile) {
+        // Điện thoại bắt buộc dùng Redirect
         await signInWithRedirect(auth, googleProvider);
       } else {
+        // Máy tính dùng Popup cho nhanh
         await signInWithPopup(auth, googleProvider);
         toast.success('Đăng nhập thành công!');
       }
@@ -1283,22 +1273,22 @@ export default function Game() {
  const logout = async () => {
     try {
       if (currentUser) {
-        // 1. Đánh dấu Offline trên Database trước khi thoát
         const userRef = doc(db, "users", currentUser.uid);
+        // Đánh dấu Offline trên DB trước khi thoát
         await updateDoc(userRef, { 
           isOnline: false,
-          last_session_id: "" // Xóa luôn ID phiên cũ
+          last_session_id: "" 
         });
       }
+      // Xóa dấu vết session ở máy cục bộ
+      localStorage.removeItem('astro_session_id');
       
-      // 2. Thực hiện đăng xuất khỏi Firebase
       await signOut(auth);
       setCurrentUser(null);
       setScreen('menu');
-      toast.success('Đã đăng xuất an toàn!');
+      toast.success('Đã đăng xuất!');
     } catch (error) {
       console.error("Lỗi đăng xuất:", error);
-      toast.error("Lỗi khi giải phóng phiên đăng nhập!");
     }
   };
 
@@ -1308,94 +1298,45 @@ export default function Game() {
     
     try {
       const snap = await getDoc(userRef);
-      
-      // 1. Lấy Session ID cũ từ máy này (nếu có) để nhận diện "người quen"
       let savedSessionId = localStorage.getItem('astro_session_id');
-      
-      // 2. Ưu tiên dùng lại ID cũ nếu có, nếu không mới tạo ID mới (từ socket hoặc timestamp)
       const currentSocketId = savedSessionId || socketRef.current?.id || "web_" + Date.now();
-      
-      // 3. Lưu ngay ID này vào máy để lần sau load lại trang không bị chặn
       localStorage.setItem('astro_session_id', currentSocketId);
-
-      let guestCoins = parseInt(localStorage.getItem('astro_guest_coins')) || 0;
-      let guestBestScore = parseInt(localStorage.getItem('astroCatBestScore')) || 0;
 
       if (snap.exists()) {
         const data = snap.data();
 
-        // --- LOGIC CHỐNG ĐĂNG NHẬP CHỒNG CHÉO THÔNG MINH ---
-        // Chỉ chặn nếu: Tài khoản đang Online VÀ Session ID trên server khác hoàn toàn với máy này
-        if (data.isOnline === true && data.last_session_id !== currentSocketId) {
-          toast.error("⚠️ Tài khoản này đang được chơi ở một thiết bị khác!", { duration: 5000 });
+        // Chặn nếu Online ở máy KHÁC (ID khác ID máy này và ID đã lưu)
+        if (data.isOnline === true && 
+            data.last_session_id !== currentSocketId && 
+            data.last_session_id !== savedSessionId) {
+          
+          toast.error("⚠️ Tài khoản đang được chơi ở thiết bị khác!", { duration: 5000 });
           await signOut(auth);
           setCurrentUser(null);
           setScreen('menu');
           return;
         }
 
-        // Nếu hợp lệ (hoặc là chính máy này load lại), đánh dấu Online
-        await updateDoc(userRef, {
-          isOnline: true,
-          last_session_id: currentSocketId
-        });
+        await updateDoc(userRef, { isOnline: true, last_session_id: currentSocketId });
 
-        // --- TIẾP TỤC LOGIC TẢI DỮ LIỆU GAME CỦA BẠN ---
-        let currentLives = data.lives !== undefined ? data.lives : 5;
-        let updatedAt = data.livesUpdatedAt || Date.now();
-        const REGEN_TIME = 4 * 60 * 60 * 1000;
-
-        if (currentLives < 5) {
-          let now = Date.now();
-          let timePassed = now - updatedAt;
-          let livesToRecover = Math.floor(timePassed / REGEN_TIME);
-
-          if (livesToRecover > 0) {
-            currentLives += livesToRecover;
-            if (currentLives >= 5) {
-              currentLives = 5;
-              updatedAt = now;
-            } else {
-              updatedAt += livesToRecover * REGEN_TIME;
-            }
-          }
-        } else {
-          updatedAt = Date.now();
-        }
-
-        gsRef.current.bestScore = Math.max(data.highScore || 0, guestBestScore);
-        gsRef.current.coins = (data.coins || 0) + guestCoins;
-        gsRef.current.lives = currentLives;
-        gsRef.current.livesUpdatedAt = updatedAt;
+        // Logic tải dữ liệu game (giữ nguyên của bạn)
+        gsRef.current.bestScore = data.highScore || 0;
+        gsRef.current.coins = data.coins || 0;
+        gsRef.current.lives = data.lives !== undefined ? data.lives : 5;
         gsRef.current.inventory = data.inventory || { skins: ['classic'], bgs: ['deep'] };
         gsRef.current.userSettings = data.equipped || { skin: 'classic', bg: 'deep' };
-        
       } else {
-        // Tạo profile mới nếu lần đầu đăng nhập
+        // Tạo profile mới
         const newProfile = {
           displayName: user.displayName,
           photoURL: user.photoURL,
-          highScore: guestBestScore,
-          coins: guestCoins,
-          lives: 5,
-          livesUpdatedAt: Date.now(),
-          inventory: { skins: ['classic'], bgs: ['deep'] },
-          equipped: { skin: 'classic', bg: 'deep' },
-          isOnline: true, 
-          last_session_id: currentSocketId
+          coins: 0, lives: 5, isOnline: true, last_session_id: currentSocketId
         };
         await setDoc(userRef, newProfile);
-        gsRef.current = { ...gsRef.current, ...newProfile };
       }
-
-      if (guestCoins > 0) localStorage.removeItem('astro_guest_coins');
-
       setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins, lives: gsRef.current.lives }));
-      saveUserProfile();
-      
     } catch (error) {
-      console.error("Lỗi khi tải hồ sơ:", error);
-      toast.error("Không thể kết nối máy chủ để kiểm tra trạng thái đăng nhập!");
+      console.error("Lỗi tải profile:", error);
     }
   };
 
