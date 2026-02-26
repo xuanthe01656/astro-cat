@@ -1211,58 +1211,21 @@ export default function Game() {
     };
   }, [screen, uiUpdates.selectedBg]);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const initAuth = async () => {
-      try {
-        // 1. Luôn hứng kết quả Redirect trước (Dành cho trình duyệt điện thoại)
-        const result = await getRedirectResult(auth);
-        if (result?.user && isMounted) {
-          toast.success('Đăng nhập thành công!');
-          await loadUserProfile(result.user);
-        }
-      } catch (error) {
-        console.error("Lỗi Redirect Auth:", error);
-        // Nếu hiện lỗi này trên điện thoại, bạn phải thêm domain vào Firebase
-        if (error.code === 'auth/unauthorized-domain') {
-          toast.error("Lỗi: Domain này chưa được cấp quyền trong Firebase!");
-        }
-      }
-
-      // 2. Lắng nghe thay đổi trạng thái đăng nhập
-      onAuthStateChanged(auth, async (user) => {
-        if (!isMounted) return;
-        setCurrentUser(user);
-        
-        if (user) {
-          gsRef.current.myName = user.displayName; 
-          await loadUserProfile(user);
-        } else {
-          // Xử lý dữ liệu cho khách (Guest)
-          let guestLives = parseInt(localStorage.getItem('astro_guest_lives')) || 5;
-          let guestCoins = parseInt(localStorage.getItem('astro_guest_coins')) || 0;
-          gsRef.current.lives = guestLives;
-          gsRef.current.coins = guestCoins;
-          setUIUpdates(prev => ({ ...prev, lives: guestLives, coins: guestCoins }));
-        }
-      });
-    };
-
-    initAuth();
-    return () => { isMounted = false; };
-  }, []);
   const loginWithGoogle = async () => {
     try {
       googleProvider.setCustomParameters({ prompt: 'select_account' });
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       
-      if (isMobile) {
-        // Điện thoại bắt buộc dùng Redirect
+      // Kiểm tra môi trường: Là App Android/iOS thật hay là trình duyệt Web
+      const isNative = Capacitor.isNativePlatform();
+      const isMobileWeb = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+      if (isNative || isMobileWeb) {
+        // Trên App APK và trình duyệt điện thoại: Bắt buộc dùng Redirect
         await signInWithRedirect(auth, googleProvider);
       } else {
-        // Máy tính dùng Popup cho nhanh
-        await signInWithPopup(auth, googleProvider);
+        // Trên Máy tính: Dùng Popup cho mượt
+        const result = await signInWithPopup(auth, googleProvider);
+        if (result.user) await loadUserProfile(result.user);
         toast.success('Đăng nhập thành công!');
       }
     } catch (error) {
@@ -1290,45 +1253,57 @@ export default function Game() {
     
     try {
       const snap = await getDoc(userRef);
-      // Lấy ID cũ nếu có, nếu không thì lấy socket hoặc tạo mới
+      // Sử dụng Session ID cố định lưu trong máy
       let savedId = localStorage.getItem('astro_session_id');
-      const currentSocketId = savedId || socketRef.current?.id || "web_" + Date.now();
-      localStorage.setItem('astro_session_id', currentSocketId);
+      if (!savedId) {
+        savedId = "sess_" + Math.random().toString(36).substring(2, 15);
+        localStorage.setItem('astro_session_id', savedId);
+      }
+      const currentSocketId = savedId;
 
       if (snap.exists()) {
         const data = snap.data();
+        const now = Date.now();
+        const lastUpdate = data.last_update_ms || 0;
 
-        // LOGIC THÔNG MINH: Chỉ chặn nếu Online VÀ ID khác hoàn toàn ID đang giữ
-        if (data.isOnline === true && data.last_session_id !== currentSocketId) {
-          toast.error("⚠️ Tài khoản đang chơi ở máy khác!");
+        // Nếu ID khớp (cùng thiết bị) hoặc mới Online cách đây < 15 giây (do load lại trang)
+        const isSameDevice = data.last_session_id === currentSocketId;
+        const isQuickReload = (now - lastUpdate) < 15000; 
+
+        if (data.isOnline === true && !isSameDevice && !isQuickReload) {
+          toast.error("⚠️ Tài khoản đang được chơi ở thiết bị khác!");
           await signOut(auth);
           setCurrentUser(null);
           setScreen('menu');
           return;
         }
 
-        // Cập nhật trạng thái Online
+        // Cập nhật trạng thái mới
         await updateDoc(userRef, {
           isOnline: true,
-          last_session_id: currentSocketId
+          last_session_id: currentSocketId,
+          last_update_ms: now
         });
 
-        // Tải dữ liệu (Score, Coins, Lives...)
+        // Tải dữ liệu
         gsRef.current.coins = data.coins || 0;
         gsRef.current.lives = data.lives !== undefined ? data.lives : 5;
-        // ... các field khác của bạn
+        gsRef.current.bestScore = data.highScore || 0;
+        gsRef.current.inventory = data.inventory || { skins: ['classic'], bgs: ['deep'] };
+        gsRef.current.userSettings = data.equipped || { skin: 'classic', bg: 'deep' };
       } else {
         // Tạo profile mới
         await setDoc(userRef, {
           displayName: user.displayName,
           isOnline: true,
           last_session_id: currentSocketId,
-          coins: 0, lives: 5
+          last_update_ms: Date.now(),
+          coins: 0, lives: 5, highScore: 0
         });
       }
       setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins, lives: gsRef.current.lives }));
     } catch (error) {
-      console.error("Lỗi load profile:", error);
+      console.error("Lỗi tải hồ sơ:", error);
     }
   };
 
@@ -1346,7 +1321,32 @@ export default function Game() {
       equipped: gsRef.current.userSettings,
     });
   };
+useEffect(() => {
+    let isMounted = true;
 
+    const initAuth = async () => {
+      // Hứng kết quả Redirect (Cực kỳ quan trọng để App APK đăng nhập được)
+      try {
+        const result = await getRedirectResult(auth);
+        if (result?.user && isMounted) {
+          await loadUserProfile(result.user);
+        }
+      } catch (error) {
+        console.error("Redirect Error:", error);
+      }
+
+      onAuthStateChanged(auth, async (user) => {
+        if (!isMounted) return;
+        setCurrentUser(user);
+        if (user) {
+          await loadUserProfile(user);
+        }
+      });
+    };
+
+    initAuth();
+    return () => { isMounted = false; };
+  }, []);
   // const watchAd = (rewardType) => {
   //   if (!currentUser) {
   //     toast.error("Vui lòng đăng nhập để nhận thưởng!");
