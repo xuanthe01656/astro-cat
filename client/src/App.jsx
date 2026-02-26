@@ -1446,7 +1446,7 @@ export default function Game() {
     return () => clearInterval(timer);
   }, [currentUser, uiUpdates.lives]);
   return (
-    <div style={{ width: '100%', height: '100vh', position: 'relative', backgroundColor: '#0d0e15' }}>
+    <div style={{ width: '100%', height: '100dvh', position: 'relative', backgroundColor: '#0d0e15' }}>
       
       <canvas
         ref={canvasRef}
