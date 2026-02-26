@@ -1262,6 +1262,11 @@ export default function Game() {
   }, []);
   const loginWithGoogle = async () => {
     try {
+      // Ép Google luôn hiển thị bảng chọn tài khoản thay vì tự đăng nhập
+      googleProvider.setCustomParameters({
+        prompt: 'select_account'
+      });
+
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       if (isMobile) {
         await signInWithRedirect(auth, googleProvider);
@@ -1275,18 +1280,27 @@ export default function Game() {
     }
   };
 
-  const logout = async () => {
-  try {
-    if (currentUser) {
-      const userRef = doc(db, "users", currentUser.uid);
-      await updateDoc(userRef, { isOnline: false }); // Giải phóng tài khoản
+ const logout = async () => {
+    try {
+      if (currentUser) {
+        // 1. Đánh dấu Offline trên Database trước khi thoát
+        const userRef = doc(db, "users", currentUser.uid);
+        await updateDoc(userRef, { 
+          isOnline: false,
+          last_session_id: "" // Xóa luôn ID phiên cũ
+        });
+      }
+      
+      // 2. Thực hiện đăng xuất khỏi Firebase
+      await signOut(auth);
+      setCurrentUser(null);
+      setScreen('menu');
+      toast.success('Đã đăng xuất an toàn!');
+    } catch (error) {
+      console.error("Lỗi đăng xuất:", error);
+      toast.error("Lỗi khi giải phóng phiên đăng nhập!");
     }
-    await signOut(auth);
-    toast.success('Đã đăng xuất!');
-  } catch (error) {
-    console.error("Lỗi đăng xuất:", error);
-  }
-};
+  };
 
   const loadUserProfile = async (user) => {
     if (!user) return;
@@ -1294,8 +1308,15 @@ export default function Game() {
     
     try {
       const snap = await getDoc(userRef);
-      // Tạo một ID duy nhất cho phiên làm việc của máy này
-      const currentSocketId = socketRef.current?.id || "web_" + Date.now();
+      
+      // 1. Lấy Session ID cũ từ máy này (nếu có) để nhận diện "người quen"
+      let savedSessionId = localStorage.getItem('astro_session_id');
+      
+      // 2. Ưu tiên dùng lại ID cũ nếu có, nếu không mới tạo ID mới (từ socket hoặc timestamp)
+      const currentSocketId = savedSessionId || socketRef.current?.id || "web_" + Date.now();
+      
+      // 3. Lưu ngay ID này vào máy để lần sau load lại trang không bị chặn
+      localStorage.setItem('astro_session_id', currentSocketId);
 
       let guestCoins = parseInt(localStorage.getItem('astro_guest_coins')) || 0;
       let guestBestScore = parseInt(localStorage.getItem('astroCatBestScore')) || 0;
@@ -1303,17 +1324,17 @@ export default function Game() {
       if (snap.exists()) {
         const data = snap.data();
 
-        // --- LOGIC CHẶN ĐĂNG NHẬP CHỒNG CHÉO ---
-        // Nếu tài khoản đang online và session ID khác với máy này
+        // --- LOGIC CHỐNG ĐĂNG NHẬP CHỒNG CHÉO THÔNG MINH ---
+        // Chỉ chặn nếu: Tài khoản đang Online VÀ Session ID trên server khác hoàn toàn với máy này
         if (data.isOnline === true && data.last_session_id !== currentSocketId) {
           toast.error("⚠️ Tài khoản này đang được chơi ở một thiết bị khác!", { duration: 5000 });
-          await signOut(auth); // Đăng xuất ngay máy định vào sau
+          await signOut(auth);
           setCurrentUser(null);
-          setScreen('menu'); // Đẩy về menu chính
-          return; // Thoát hàm, không tải dữ liệu game
+          setScreen('menu');
+          return;
         }
 
-        // Nếu hợp lệ, đánh dấu máy này đang chiếm giữ tài khoản (Online)
+        // Nếu hợp lệ (hoặc là chính máy này load lại), đánh dấu Online
         await updateDoc(userRef, {
           isOnline: true,
           last_session_id: currentSocketId
@@ -1360,7 +1381,7 @@ export default function Game() {
           livesUpdatedAt: Date.now(),
           inventory: { skins: ['classic'], bgs: ['deep'] },
           equipped: { skin: 'classic', bg: 'deep' },
-          isOnline: true, // Đánh dấu online ngay khi tạo
+          isOnline: true, 
           last_session_id: currentSocketId
         };
         await setDoc(userRef, newProfile);

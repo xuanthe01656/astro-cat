@@ -21,19 +21,66 @@ export default function Menu({ currentUser, uiUpdates, topRecords, startGame, se
         )}
       </div>
       {currentUser && (
-        <div style={{ position: 'absolute', top: '20px', left: '20px', display: 'flex', flexDirection: 'column', gap: '5px', pointerEvents: 'auto' }}>
-          <div style={{ background: 'rgba(0,0,0,0.6)', padding: '5px 15px', borderRadius: '10px', color: '#FFD700', fontSize: '24px', border: '2px solid #FFD700', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div className="hud-container" style={{ 
+          position: 'absolute', 
+          top: 'min(3vh, 20px)', 
+          left: 'min(3vw, 20px)', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '8px', 
+          pointerEvents: 'auto',
+          zIndex: 100 
+        }}>
+          {/* Box hiển thị Xu */}
+          <div className="hud-item coin-box" style={{ 
+            background: 'rgba(0,0,0,0.7)', 
+            padding: '5px 12px', 
+            borderRadius: '12px', 
+            color: '#FFD700', 
+            fontSize: 'clamp(18px, 4vw, 24px)', // Tự co giãn font theo màn hình
+            border: '2px solid #FFD700', 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px',
+            boxShadow: '0 0 10px rgba(255, 215, 0, 0.2)',
+            fontFamily: "'VT323', monospace"
+          }}>
             <span className="pixel-icon icon-coin"></span>
-            {uiUpdates.coins || 0}
+            <span>{uiUpdates.coins || 0}</span>
           </div>
-          <div style={{ background: 'rgba(0,0,0,0.6)', padding: '5px 5px', borderRadius: '10px', color: '#ff4757', fontSize: '24px', border: '2px solid #ff4757', display: 'flex', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
-            <div style={{ width: '33%' }}>
+
+          {/* Box hiển thị Mạng/Tim */}
+          <div className="hud-item life-box" style={{ 
+            background: 'rgba(0,0,0,0.7)', 
+            padding: '5px 12px', 
+            borderRadius: '12px', 
+            color: '#ff4757', 
+            fontSize: 'clamp(18px, 4vw, 24px)', 
+            border: '2px solid #ff4757', 
+            display: 'flex', 
+            flexDirection: 'column', // Chuyển sang cột để chứa thời gian hồi
+            alignItems: 'flex-start', 
+            boxShadow: '0 0 10px rgba(255, 71, 87, 0.2)',
+            fontFamily: "'VT323', monospace",
+            minWidth: '100px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
               <span className="pixel-icon icon-heart"></span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: '1.2' }}>
               <span>{uiUpdates.lives || 0}/5</span>
             </div>
-            <div style={{ fontSize: '14px', color: '#ccc', textAlign: 'center' }}>{uiUpdates.nextLifeTime}</div>
+            
+            {uiUpdates.nextLifeTime && (
+              <div style={{ 
+                fontSize: 'clamp(10px, 2.5vw, 14px)', 
+                color: '#ccc', 
+                width: '100%',
+                textAlign: 'right',
+                marginTop: '-2px',
+                opacity: 0.9
+              }}>
+                {uiUpdates.nextLifeTime}
+              </div>
+            )}
           </div>
         </div>
       )}
