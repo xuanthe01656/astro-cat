@@ -156,7 +156,29 @@
         th { border-bottom: 1px solid #FFD700; padding: 5px; color: #FFD700; position: sticky; top: 0; background: #000; }
         td { padding: 8px; border-bottom: 1px solid #444; }
         #loadingMsg { position: fixed; top: 10px; right: 10px; background: #333; color: #00ff00; padding: 5px 10px; border-radius: 4px; font-size: 16px; display: none; z-index: 100; }
-
+        .tab-container { 
+            display: flex; 
+            justify-content: center; 
+            gap: 10px; 
+            margin-bottom: 10px; 
+        }
+        .tab-btn { 
+            background: #333; 
+            color: #fff; 
+            border: 1px solid #777; 
+            padding: 5px 15px; 
+            cursor: pointer; 
+            font-family: 'VT323', monospace; 
+            font-size: 20px; 
+            pointer-events: auto; /* QUAN TRỌNG NHẤT: Bật lại khả năng click */
+            transition: all 0.2s;
+        }
+        .tab-btn.active { 
+            background: #FFD700; 
+            color: #000; 
+            border-color: #FFD700; 
+            font-weight: bold;
+        }
         /* [MỚI] UI LOBBY (PHÒNG CHỜ) */
         #lobbyScreen { background: rgba(0,0,0,0.9); z-index: 25; }
         .room-code-display { font-size: 50px; color: #00FFFF; border: 2px dashed #fff; padding: 10px 30px; margin: 20px; background: rgba(0,0,0,0.5); user-select: text; pointer-events: auto; }
@@ -374,40 +396,52 @@
             margin-bottom: 10px;
         }
  /* ================================================================= */
-/* 📱 MOBILE LANDSCAPE MODE (Màn hình ngang)                         */
-/* Áp dụng khi chiều cao màn hình nhỏ hơn 500px (Điện thoại xoay)    */
+/* 📱 MOBILE PORTRAIT MODE (Màn hình dọc - Điện thoại < 600px)       */
 /* ================================================================= */
 @media only screen and (max-width: 600px) {
-    .title { font-size: 55px; } /* Thu nhỏ tiêu đề chính */
-    .subtitle { font-size: 20px; }
-    
-    .menu-grid {
-        gap: 10px;
-        width: 95%;
+    /* --- CHUNG --- */
+    .title { font-size: 40px !important; margin-bottom: 10px !important; }
+    .subtitle { font-size: 18px !important; margin-bottom: 15px !important; }
+    .btn { font-size: 18px !important; padding: 12px 5px !important; }
+
+    /* --- LOBBY (PHÒNG SOLO) --- */
+    .lobby-panel { 
+        padding: 20px 15px !important; 
+        width: 85% !important; 
+        gap: 10px !important;
     }
-    .btn {
-        font-size: 20px; /* Thu nhỏ font chữ nút để không bị vỡ 2 cột */
-        padding: 12px 5px;
+    #lobbyNameInput { font-size: 18px !important; width: 100% !important; padding: 10px !important; }
+    #roomInput { font-size: 24px !important; padding: 10px !important; height: auto !important; }
+    .divider { font-size: 16px !important; margin: 5px 0 !important; }
+    .room-code-box { font-size: 45px !important; padding: 5px !important; margin: 10px 0 !important; }
+    .btn-back { font-size: 16px !important; padding: 5px 15px !important; margin-top: 10px !important;}
+
+    /* --- GAMEOVER PANEL --- */
+    .gameover-panel { 
+        padding: 20px 15px !important; 
+        width: 85% !important; 
+        gap: 10px !important; 
     }
+    .go-title { font-size: 42px !important; letter-spacing: 0 !important; margin-bottom: 0 !important; }
     
-    /* Thu nhỏ chữ trong bảng Game Over */
-    .gameover-panel { padding: 25px 15px; width: 85%; gap: 10px; }
-    .go-title { font-size: 45px; }
+    .score-display { font-size: 20px !important; padding: 5px 20px !important; } 
+    .score-display span { font-size: 24px !important; }
     
-    /* Gộp các nút ở màn hình Game Over xếp dọc thay vì ngang cho dễ bấm */
-    .action-buttons {
-        flex-direction: column;
-        gap: 10px;
+    /* Nhóm nút Chơi Lại / Menu: Xếp dọc trên Mobile cho dễ bấm */
+    .gameover-panel > div:last-child { 
+        flex-direction: column !important; 
+        gap: 10px !important; 
+        margin-top: 5px !important;
     }
-    .action-buttons .btn { font-size: 20px; width: 100%; }
-    
-    /* Thu nhỏ ô nhập tên / mã số */
-    .name-input, .room-input { font-size: 20px; width: 90%; }
-    #lobbyMain > .btn-blue { font-size: 20px; }
-    
-    /* Bảng xếp hạng */
-    .leaderboard-box { padding: 10px; max-height: 300px; }
-    table { font-size: 16px; }
+    .gameover-panel > div:last-child .btn { 
+        font-size: 18px !important; 
+        width: 100% !important; 
+        padding: 12px !important; 
+    }
+    #levelUpMsg { 
+        font-size: 50px !important; 
+        text-shadow: 3px 3px 0px #ff4757 !important; 
+    }
 }
 @media only screen and (max-height: 500px) and (orientation: landscape) {
 
@@ -468,29 +502,75 @@
         font-size: 16px;
     }
 
-    /* 4. GAME OVER: Layout 2 cột (Trái: Điểm - Phải: Nút) */
+    /* 4. GAME OVER: Thu gọn để vừa màn hình ngang */
     .gameover-panel {
-        flex-direction: row; /* Dàn ngang */
-        flex-wrap: wrap;
-        justify-content: space-around;
-        padding: 15px;
-        max-width: 600px;
-        gap: 10px;
+        flex-direction: column !important; /* Giữ xếp dọc để các thành phần không bị chạy lộn xộn */
+        padding: 10px 20px !important;
+        width: 85% !important;
+        max-width: 500px !important;
+        gap: 5px !important; /* Bóp nhỏ khoảng cách giữa các dòng */
+        margin-top: 10px !important;
     }
     
-    /* Cột bên trái: Tiêu đề + Điểm */
-    .go-title { font-size: 40px !important; width: 100%; margin: 0;} /* Tiêu đề vẫn ở trên cùng */
-    
-    .score-block { /* Nhóm điểm số */
-        display: flex; 
-        flex-direction: column;
-        justify-content: center;
-        width: 45%; 
+    .go-title { 
+        font-size: 35px !important; 
+        margin-bottom: 0 !important;
     }
+    
+    /* Thu nhỏ chữ Điểm số */
     .score-display {
-        font-size: 20px !important;
-        padding: 5px 15px;
-        margin-bottom: 5px;
+        font-size: 16px !important;
+        padding: 2px 20px !important;
+        margin-bottom: 0 !important;
+    }
+    .score-display span { font-size: 20px !important; }
+    
+    .best-score { 
+        font-size: 14px !important; 
+        margin-bottom: 0 !important; 
+    }
+    
+    /* Form lưu điểm (Ép Input và Nút Lưu nằm trên cùng 1 hàng ngang) */
+    #submitForm {
+        width: 100% !important;
+        border-top: none !important;
+        padding-top: 5px !important;
+        margin-top: 0 !important;
+        flex-direction: row !important; /* <--- Phép thuật tiết kiệm không gian ở đây */
+        gap: 10px !important;
+    }
+    .name-input { 
+        font-size: 16px !important; 
+        padding: 5px !important; 
+        width: 60% !important; 
+    }
+    #submitForm .btn {
+        width: 40% !important;
+        font-size: 14px !important;
+        padding: 5px !important;
+    }
+    
+    /* Nút hành động Chơi Lại / Menu */
+    .gameover-panel > div:last-child {
+        margin-top: 5px !important;
+        gap: 10px !important;
+    }
+    .gameover-panel > div:last-child .btn {
+        font-size: 16px !important;
+        padding: 5px !important;
+    }
+    
+    /* Thu gọn Khung kết quả PvP Online */
+    .gameover-panel > div[style*="border: 1px solid #00FFFF"] {
+        padding: 5px !important;
+        margin-bottom: 0 !important;
+    }
+    .gameover-panel > div[style*="border: 1px solid #00FFFF"] div:nth-child(1) {
+        font-size: 14px !important;
+    }
+    .gameover-panel > div[style*="border: 1px solid #00FFFF"] div:nth-child(2) {
+        font-size: 18px !important;
+        margin-top: 0 !important;
     }
     .score-display span { font-size: 24px !important; }
     
@@ -519,4 +599,28 @@
     .leaderboard-box { max-height: 200px !important; }
     .tab-btn { font-size: 16px !important; padding: 2px 10px !important; }
     .tab-container { margin-bottom: 5px !important; }
+    #levelUpMsg { 
+        font-size: 40px !important; 
+        text-shadow: 2px 2px 0px #ff4757 !important; 
+    }
+}
+#levelUpMsg {
+    position: absolute; 
+    top: 40%; left: 50%; 
+    transform: translate(-50%, -50%);
+    font-size: 80px; 
+    color: #FFD700; 
+    font-weight: bold;
+    text-shadow: 4px 4px 0px #ff4757; 
+    pointer-events: none; 
+    z-index: 1005;
+    animation: retroLevelUp 1.5s forwards;
+    font-family: 'VT323', monospace;
+}
+
+@keyframes retroLevelUp {
+    0% { opacity: 0; transform: translate(-50%, -30%); }
+    20% { opacity: 1; transform: translate(-50%, -50%); }
+    80% { opacity: 1; transform: translate(-50%, -50%); }
+    100% { opacity: 0; transform: translate(-50%, -70%); } /* Trôi nhẹ lên trên rồi biến mất */
 }
