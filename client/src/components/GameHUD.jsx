@@ -13,7 +13,7 @@ export default function GameHUD({ gsRef, uiUpdates, frameCount, levelUpEffect, f
             LVL {gsRef.current.level}
           </div>
           <div id="coinHud" style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'absolute', top: '110px', left: '20px', fontSize: '28px', color: '#FFD700', zIndex: 1000, pointerEvents: 'none', fontWeight: 'bold', textShadow: '2px 2px 4px #000, 0 0 8px #FFD700', fontFamily: "'VT323', monospace" }}>
-            <span>🪙</span> {uiUpdates.coins || 0}
+            <span className="pixel-icon icon-coin"></span> {uiUpdates.coins || 0}
           </div>
         </>
       )}
@@ -22,7 +22,7 @@ export default function GameHUD({ gsRef, uiUpdates, frameCount, levelUpEffect, f
         <div className="online-hud" style={{ position: 'absolute', top: '10px', left: '10px', background: 'rgba(0, 0, 0, 0.6)', padding: '10px', borderRadius: '8px', fontFamily: "'VT323', monospace", zIndex: 1000, textAlign: 'left', border: '1px solid #444', pointerEvents: 'auto' }}>
           <div style={{ fontSize: '24px', color: '#FFD700', textShadow: '2px 2px 0 #000', marginBottom: '5px' }}><span style={{ fontSize: '0.7em', opacity: 0.8, marginRight: '5px' }}>BẠN</span>: {gsRef.current.score}</div>
           <div style={{ fontSize: '24px', color: '#00FFFF', textShadow: '2px 2px 0 #000', marginBottom: '5px' }}><span style={{ fontSize: '0.7em', opacity: 0.8, marginRight: '5px' }}>ĐỐI THỦ</span>: {gsRef.current.remoteScore}</div>
-          <div style={{ fontSize: '20px', color: '#FFD700', textShadow: '2px 2px 0 #000', marginBottom: '5px' }}><span style={{ fontSize: '0.7em', opacity: 0.8, marginRight: '5px' }}>XU</span>: 🪙 {uiUpdates.coins || 0}</div>
+          <div style={{ fontSize: '20px', color: '#FFD700', textShadow: '2px 2px 0 #000', marginBottom: '5px' }}><span style={{ fontSize: '0.7em', opacity: 0.8, marginRight: '5px' }}>XU</span>: <span className="pixel-icon icon-coin"></span> {uiUpdates.coins || 0}</div>
           <div style={{ color: '#2ed573', fontSize: '18px' }}>Kết nối OK</div>
         </div>
       )}

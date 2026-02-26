@@ -26,19 +26,19 @@ export default function Menu({ currentUser, uiUpdates, topRecords, startGame, se
             <span className="pixel-icon icon-coin"></span>
             {uiUpdates.coins || 0}
           </div>
-          <div style={{ background: 'rgba(0,0,0,0.6)', padding: '5px 15px', borderRadius: '10px', color: '#ff4757', fontSize: '24px', border: '2px solid #ff4757', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span className="pixel-icon icon-heart"></span>
+          <div style={{ background: 'rgba(0,0,0,0.6)', padding: '5px 5px', borderRadius: '10px', color: '#ff4757', fontSize: '24px', border: '2px solid #ff4757', display: 'flex', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <div style={{ width: '33%' }}>
+              <span className="pixel-icon icon-heart"></span>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: '1.2' }}>
               <span>{uiUpdates.lives || 0}/5</span>
-              {uiUpdates.nextLifeTime && (
-                <span style={{ fontSize: '14px', color: '#ccc' }}>hồi sau: {uiUpdates.nextLifeTime}</span>
-              )}
             </div>
+            <div style={{ fontSize: '14px', color: '#ccc', textAlign: 'center' }}>{uiUpdates.nextLifeTime}</div>
           </div>
         </div>
       )}
       <div className="title">ASTRO CAT 5</div>
-      <div className="subtitle">Ultimate Online + Socket.io</div>
+      <div className="subtitle">Ultimate Online</div>
 
       <div className="menu-grid">
         <button className="btn btn-red" onClick={() => startGame('single')}>🚀 Chơi Đơn</button>

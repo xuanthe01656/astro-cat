@@ -8,11 +8,11 @@ export default function Shop({ uiUpdates, setUIUpdates, gsRef, setScreen, select
       <div className="title" style={{ fontSize: '40px', marginTop: '20px' }}>KHO TRANG BỊ & SHOP</div>
       <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', justifyContent: 'center' }}>
         <div style={{ background: 'rgba(0,0,0,0.6)', padding: '5px 20px', borderRadius: '12px', color: '#FFD700', fontSize: '24px', border: '2px solid #FFD700', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 0 10px rgba(255,215,0,0.2)' }}>
-          <span style={{ fontSize: '26px' }}><img src="/images/Coin.png" alt="Google" style={{ width: '20px' }} /></span> 
+          <span className="pixel-icon icon-coin"></span>
           <span style={{ fontFamily: "'VT323', monospace", fontWeight: 'bold' }}>{uiUpdates.coins || 0}</span>
         </div>
         <div style={{ background: 'rgba(0,0,0,0.6)', padding: '5px 20px', borderRadius: '12px', color: '#ff4757', fontSize: '24px', border: '2px solid #ff4757', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 0 10px rgba(255,71,87,0.2)' }}>
-          <span style={{ fontSize: '26px' }}><img src="/images/heart.png" alt="Google" style={{ width: '30px' }} /></span> 
+          <span className="pixel-icon icon-heart"></span>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: '1.2' }}>
             <span style={{ fontFamily: "'VT323', monospace", fontWeight: 'bold' }}>{uiUpdates.lives || 0}/5</span>
             {uiUpdates.nextLifeTime && (
@@ -98,16 +98,16 @@ export default function Shop({ uiUpdates, setUIUpdates, gsRef, setScreen, select
             }} 
             style={{ pointerEvents: 'auto', border: '2px solid #ff4757', background: '#333', width: '100%', height: '80px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', borderRadius: '8px', flexDirection: 'column' }}
           >
-            <div style={{ fontSize: '18px', color: '#fff' }}>❤️ +1 MẠNG CHƠI</div>
-            <div style={{ fontSize: '18px', color: '#FFD700', fontWeight: 'bold' }}>🪙 MUA: 50 XU</div>
+            <div style={{ fontSize: '18px', color: '#fff' }}><span className="pixel-icon icon-heart"></span> +1 MẠNG CHƠI</div>
+            <div style={{ fontSize: '18px', color: '#FFD700', fontWeight: 'bold' }}><span className="pixel-icon icon-coin"></span> MUA: 50 XU</div>
           </div>
           <div style={{ width: '100%', height: '1px', background: '#555', margin: '5px 0' }}></div>
           <div className="shop-item" onClick={() => watchAd('coin')} style={{ pointerEvents: isWatchingAd ? 'none' : 'auto', opacity: isWatchingAd ? 0.5 : 1, border: '2px solid #2ed573', background: '#2ed573', width: '100%', height: '50px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', borderRadius: '8px', flexDirection: 'row', gap: '10px' }}>
-            <div style={{ fontSize: '24px' }}>📺</div>
+            <div style={{ fontSize: '24px' }}><div className="pixel-icon icon-tv"></div></div>
             <div style={{ fontSize: '18px', color: 'rgb(255, 215, 0)', fontWeight: 'bold' }}>FREE 50 XU</div>
           </div>
           <div className="shop-item" onClick={() => watchAd('life')} style={{ pointerEvents: isWatchingAd ? 'none' : 'auto', opacity: isWatchingAd ? 0.5 : 1, border: '2px solid #ff4757', background: '#ff4757', width: '100%', height: '50px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', borderRadius: '8px', flexDirection: 'row', gap: '10px' }}>
-            <div style={{ fontSize: '24px' }}>📺</div>
+            <div style={{ fontSize: '24px' }}><div className="pixel-icon icon-tv"></div></div>
             <div style={{ fontSize: '18px', color: '#fff', fontWeight: 'bold' }}>FREE 1 MẠNG</div>
           </div>
         </div>
