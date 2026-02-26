@@ -1215,22 +1215,25 @@ export default function Game() {
     try {
       googleProvider.setCustomParameters({ prompt: 'select_account' });
       
-      // Kiểm tra môi trường: Là App Android/iOS thật hay là trình duyệt Web
+      // Phân tách rạch ròi: App Native (APK) vs Web (Browser)
       const isNative = Capacitor.isNativePlatform();
-      const isMobileWeb = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-      if (isNative || isMobileWeb) {
-        // Trên App APK và trình duyệt điện thoại: Bắt buộc dùng Redirect
+      if (isNative) {
+        // Chỉ dùng Redirect khi cài file APK lên máy thật
         await signInWithRedirect(auth, googleProvider);
       } else {
-        // Trên Máy tính: Dùng Popup cho mượt
-        const result = await signInWithPopup(auth, googleProvider);
-        if (result.user) await loadUserProfile(result.user);
+        // DÙNG POPUP CHO TẤT CẢ WEB (Máy tính + Trình duyệt điện thoại)
+        await signInWithPopup(auth, googleProvider);
         toast.success('Đăng nhập thành công!');
+        // Lưu ý: Không cần gọi loadUserProfile ở đây vì onAuthStateChanged sẽ tự bắt được
       }
     } catch (error) {
       console.error("Lỗi đăng nhập:", error);
-      toast.error('Đăng nhập thất bại!');
+      if (error.code === 'auth/popup-blocked') {
+        toast.error('❌ Trình duyệt chặn Popup! Hãy ấn "Luôn cho phép" trên thanh địa chỉ.');
+      } else {
+        toast.error('Đăng nhập thất bại!');
+      }
     }
   };
  const logout = async () => {
@@ -1324,28 +1327,33 @@ export default function Game() {
 useEffect(() => {
     let isMounted = true;
 
-    const initAuth = async () => {
-      // Hứng kết quả Redirect (Cực kỳ quan trọng để App APK đăng nhập được)
-      try {
-        const result = await getRedirectResult(auth);
-        if (result?.user && isMounted) {
-          await loadUserProfile(result.user);
-        }
-      } catch (error) {
-        console.error("Redirect Error:", error);
+    // Hứng kết quả Redirect (Chỉ phục vụ cho App APK)
+    if (Capacitor.isNativePlatform()) {
+      getRedirectResult(auth).catch(err => console.error("Lỗi Redirect APK:", err));
+    }
+
+    // Lắng nghe đăng nhập (Xử lý chung cho cả Web và APK)
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!isMounted) return;
+      setCurrentUser(user);
+      
+      if (user) {
+        gsRef.current.myName = user.displayName; 
+        await loadUserProfile(user);
+      } else {
+        // Xử lý khách (Guest)
+        let guestLives = parseInt(localStorage.getItem('astro_guest_lives')) || 5;
+        let guestCoins = parseInt(localStorage.getItem('astro_guest_coins')) || 0;
+        gsRef.current.lives = guestLives;
+        gsRef.current.coins = guestCoins;
+        setUIUpdates(prev => ({ ...prev, lives: guestLives, coins: guestCoins }));
       }
+    });
 
-      onAuthStateChanged(auth, async (user) => {
-        if (!isMounted) return;
-        setCurrentUser(user);
-        if (user) {
-          await loadUserProfile(user);
-        }
-      });
+    return () => {
+      isMounted = false;
+      unsubscribe();
     };
-
-    initAuth();
-    return () => { isMounted = false; };
   }, []);
   // const watchAd = (rewardType) => {
   //   if (!currentUser) {
