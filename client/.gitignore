@@ -1,6 +1,32 @@
+# 1. Thư mục thư viện (Nặng nhất, không bao giờ đưa lên)
 node_modules/
 dist/
+build/
+.cache/
+
+# 2. File môi trường và bí mật (Cực kỳ quan trọng để bảo mật)
 .env
 .env.local
-npm-debug.log
+*.jks
+*.keystore
+*.p12
+google-services.json
+
+# 3. Capacitor & Mobile (Chỉ giữ lại code, không giữ build rác)
+android/app/build/
+android/.gradle/
+android/local.properties
+ios/App/build/
+capacitor.settings.json
+
+# 4. OS & Editor (Rác hệ thống)
 .DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.log
+
+# 5. Build Artifacts (Các bản build App bạn vừa tạo)
+*.aab
+*.apk

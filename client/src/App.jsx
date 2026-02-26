@@ -4,6 +4,8 @@ import toast, { Toaster } from 'react-hot-toast';
 import { db, auth, googleProvider } from './firebase';
 import { collection, addDoc, query, where, orderBy, limit, getDocs, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from 'firebase/auth';
+import { AdMob, RewardAdPluginEvents } from '@capacitor-community/admob';
+import { Capacitor } from '@capacitor/core';
 
 // --- IMPORT CÁC HẰNG SỐ VÀ COMPONENT ĐÃ TÁCH ---
 import { SKINS, BACKGROUNDS, PIPE_DIST_DESKTOP, PIPE_DIST_MOBILE, MAX_Y_DIFF } from './constants';
@@ -1357,7 +1359,89 @@ export default function Game() {
     });
   };
 
-  const watchAd = (rewardType) => {
+  // const watchAd = (rewardType) => {
+  //   if (!currentUser) {
+  //     toast.error("Vui lòng đăng nhập để nhận thưởng!");
+  //     return;
+  //   }
+  //   if (rewardType === 'life' && gsRef.current.lives >= 5) {
+  //     toast.error('Túi mạng đã đầy 5/5. Bạn không cần xem thêm!');
+  //     return; 
+  //   }
+  //   if (isWatchingAd) return;
+
+  //   setIsWatchingAd(true);
+  //   const adToast = toast.loading('📺 Đang phát quảng cáo... (Vui lòng đợi 3s)', { duration: 4000 });
+
+  //   setTimeout(() => {
+  //     toast.dismiss(adToast);
+  //     setIsWatchingAd(false);
+
+  //     if (rewardType === 'coin') {
+  //       gsRef.current.coins += 50; 
+  //       setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins }));
+  //       toast.success('🎁 Phần thưởng: +50 XU!');
+  //     } else if (rewardType === 'life') {
+  //       gsRef.current.lives += 1;  
+  //       setUIUpdates(prev => ({ ...prev, lives: gsRef.current.lives }));
+  //       toast.success('❤️ Phần thưởng: +1 MẠNG!');
+  //     }
+      
+  //     saveUserProfile(); 
+  //   }, 3000);
+  // };
+  // ==========================================
+  // HỆ THỐNG QUẢNG CÁO TẶNG THƯỞNG (ADMOB)
+  // ==========================================
+  const pendingRewardRef = useRef(null); // Lưu lại người dùng đang xem QC để nhận xu hay nhận mạng
+
+  useEffect(() => {
+  let rewardListener;
+  let dismissListener;
+
+  const initAdMob = async () => {
+    try {
+      await AdMob.initialize();
+      
+      // Đăng ký listener và lưu vào biến để xóa sau này
+      rewardListener = await AdMob.addListener(RewardAdPluginEvents.Rewarded, () => {
+        const rewardType = pendingRewardRef.current;
+        if (rewardType === 'coin') {
+          gsRef.current.coins += 50; 
+          setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins }));
+          toast.success('🎁 Phần thưởng: +50 XU!');
+        } else if (rewardType === 'life') {
+          gsRef.current.lives += 1;  
+          setUIUpdates(prev => ({ ...prev, lives: gsRef.current.lives }));
+          toast.success('❤️ Phần thưởng: +1 MẠNG!');
+        }
+        saveUserProfile(); 
+        pendingRewardRef.current = null;
+      });
+
+      dismissListener = await AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
+         setIsWatchingAd(false);
+      });
+
+    } catch (e) {
+      console.log("Đang chạy trên Web hoặc lỗi khởi tạo AdMob.");
+    }
+  };
+
+  initAdMob();
+
+  return () => {
+    // Kiểm tra an toàn trước khi xóa listener
+    if (rewardListener && rewardListener.remove) {
+      rewardListener.remove();
+    }
+    if (dismissListener && dismissListener.remove) {
+      dismissListener.remove();
+    }
+  };
+}, []);
+
+  const watchAd = async (rewardType) => {
     if (!currentUser) {
       toast.error("Vui lòng đăng nhập để nhận thưởng!");
       return;
@@ -1369,10 +1453,37 @@ export default function Game() {
     if (isWatchingAd) return;
 
     setIsWatchingAd(true);
-    const adToast = toast.loading('📺 Đang phát quảng cáo... (Vui lòng đợi 3s)', { duration: 4000 });
+    pendingRewardRef.current = rewardType;
 
+    // KIỂM TRA NỀN TẢNG TRƯỚC KHI CHẠY ADMOB
+    const isNative = Capacitor.isNativePlatform(); // Trả về true nếu là Android/iOS
+
+    if (!isNative) {
+      // NẾU LÀ WEB -> CHẠY GIẢ LẬP LUÔN, KHÔNG THỬ ADMOB
+      runFakeAd(rewardType);
+      return;
+    }
+
+    // NẾU LÀ NATIVE (ANDROID/IOS) -> CHẠY ADMOB THẬT
+    const loadingToast = toast.loading('Đang kết nối AdMob...');
+    try {
+      const adId = 'ca-app-pub-3940256099942544/5224354917';
+      await AdMob.prepareRewardVideoAd({ adId, isTesting: true });
+      toast.dismiss(loadingToast);
+      await AdMob.showRewardVideoAd();
+    } catch (error) {
+      console.error("AdMob Native Error:", error);
+      toast.dismiss(loadingToast);
+      runFakeAd(rewardType); // Fallback nếu AdMob thật bị lỗi trên máy thật
+    }
+  };
+
+  // Tách hàm giả lập ra riêng cho sạch code
+  const runFakeAd = (rewardType) => {
+    const fakeToast = toast.loading('📺 Đang phát QC giả lập... (Vui lòng đợi 3s)');
+    
     setTimeout(() => {
-      toast.dismiss(adToast);
+      toast.dismiss(fakeToast);
       setIsWatchingAd(false);
 
       if (rewardType === 'coin') {
@@ -1386,6 +1497,7 @@ export default function Game() {
       }
       
       saveUserProfile(); 
+      pendingRewardRef.current = null;
     }, 3000);
   };
   // ==========================================
