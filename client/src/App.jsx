@@ -1212,66 +1212,45 @@ export default function Game() {
   }, [screen, uiUpdates.selectedBg]);
 
   useEffect(() => {
-    // Xử lý kết quả sau khi quay lại từ trang Google (Dành cho điện thoại)
-    const handleRedirect = async () => {
+    let isMounted = true;
+
+    const initAuth = async () => {
       try {
+        // 1. Luôn hứng kết quả Redirect trước (Dành cho trình duyệt điện thoại)
         const result = await getRedirectResult(auth);
-        if (result && result.user) {
+        if (result?.user && isMounted) {
           toast.success('Đăng nhập thành công!');
           await loadUserProfile(result.user);
         }
       } catch (error) {
-        console.error("Lỗi Redirect:", error);
+        console.error("Lỗi Redirect Auth:", error);
+        // Nếu hiện lỗi này trên điện thoại, bạn phải thêm domain vào Firebase
         if (error.code === 'auth/unauthorized-domain') {
-          toast.error("Lỗi: Tên miền này chưa được cấp quyền trong Firebase!");
+          toast.error("Lỗi: Domain này chưa được cấp quyền trong Firebase!");
         }
       }
-    };
-    handleRedirect();
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
-      if (user) {
-        gsRef.current.myName = user.displayName; 
-        await loadUserProfile(user);
-      } else {
-        // Logic xử lý khách (Guest)
-        let guestLives = parseInt(localStorage.getItem('astro_guest_lives')) || 5;
-        let guestCoins = parseInt(localStorage.getItem('astro_guest_coins')) || 0;
-        gsRef.current.lives = guestLives;
-        gsRef.current.coins = guestCoins;
-        setUIUpdates(prev => ({ ...prev, lives: guestLives, coins: guestCoins }));
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-  useEffect(() => {
-    const handleAuthChange = async () => {
-      // Bắt buộc: Hứng kết quả Redirect cho điện thoại
-      try {
-        const result = await getRedirectResult(auth);
-        if (result && result.user) {
-          await loadUserProfile(result.user);
-        }
-      } catch (error) {
-        console.error("Lỗi xác thực Mobile:", error);
-      }
-
-      // Theo dõi trạng thái đăng nhập
+      // 2. Lắng nghe thay đổi trạng thái đăng nhập
       onAuthStateChanged(auth, async (user) => {
+        if (!isMounted) return;
         setCurrentUser(user);
+        
         if (user) {
           gsRef.current.myName = user.displayName; 
           await loadUserProfile(user);
         } else {
-          // Xử lý Guest (giữ nguyên)
+          // Xử lý dữ liệu cho khách (Guest)
           let guestLives = parseInt(localStorage.getItem('astro_guest_lives')) || 5;
-          setUIUpdates(prev => ({ ...prev, lives: guestLives }));
+          let guestCoins = parseInt(localStorage.getItem('astro_guest_coins')) || 0;
+          gsRef.current.lives = guestLives;
+          gsRef.current.coins = guestCoins;
+          setUIUpdates(prev => ({ ...prev, lives: guestLives, coins: guestCoins }));
         }
       });
     };
 
-    handleAuthChange();
+    initAuth();
+    return () => { isMounted = false; };
   }, []);
   const loginWithGoogle = async () => {
     try {
