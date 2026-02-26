@@ -1276,72 +1276,106 @@ export default function Game() {
   };
 
   const logout = async () => {
-    try {
-      await signOut(auth);
-      toast.success('Đã đăng xuất!');
-    } catch (error) {
-      console.error("Lỗi đăng xuất:", error);
+  try {
+    if (currentUser) {
+      const userRef = doc(db, "users", currentUser.uid);
+      await updateDoc(userRef, { isOnline: false }); // Giải phóng tài khoản
     }
-  };
+    await signOut(auth);
+    toast.success('Đã đăng xuất!');
+  } catch (error) {
+    console.error("Lỗi đăng xuất:", error);
+  }
+};
 
   const loadUserProfile = async (user) => {
     if (!user) return;
     const userRef = doc(db, "users", user.uid);
-    const snap = await getDoc(userRef);
+    
+    try {
+      const snap = await getDoc(userRef);
+      // Tạo một ID duy nhất cho phiên làm việc của máy này
+      const currentSocketId = socketRef.current?.id || "web_" + Date.now();
 
-    let guestCoins = parseInt(localStorage.getItem('astro_guest_coins')) || 0;
-    let guestBestScore = parseInt(localStorage.getItem('astroCatBestScore')) || 0;
+      let guestCoins = parseInt(localStorage.getItem('astro_guest_coins')) || 0;
+      let guestBestScore = parseInt(localStorage.getItem('astroCatBestScore')) || 0;
 
-    if (snap.exists()) {
-      const data = snap.data();
-      let currentLives = data.lives !== undefined ? data.lives : 5;
-      let updatedAt = data.livesUpdatedAt || Date.now();
-      const REGEN_TIME = 4 * 60 * 60 * 1000; 
+      if (snap.exists()) {
+        const data = snap.data();
 
-      if (currentLives < 5) {
-        let now = Date.now();
-        let timePassed = now - updatedAt;
-        let livesToRecover = Math.floor(timePassed / REGEN_TIME);
-
-        if (livesToRecover > 0) {
-          currentLives += livesToRecover;
-          if (currentLives >= 5) {
-            currentLives = 5;
-            updatedAt = now;
-          } else {
-            updatedAt += livesToRecover * REGEN_TIME; 
-          }
+        // --- LOGIC CHẶN ĐĂNG NHẬP CHỒNG CHÉO ---
+        // Nếu tài khoản đang online và session ID khác với máy này
+        if (data.isOnline === true && data.last_session_id !== currentSocketId) {
+          toast.error("⚠️ Tài khoản này đang được chơi ở một thiết bị khác!", { duration: 5000 });
+          await signOut(auth); // Đăng xuất ngay máy định vào sau
+          setCurrentUser(null);
+          setScreen('menu'); // Đẩy về menu chính
+          return; // Thoát hàm, không tải dữ liệu game
         }
+
+        // Nếu hợp lệ, đánh dấu máy này đang chiếm giữ tài khoản (Online)
+        await updateDoc(userRef, {
+          isOnline: true,
+          last_session_id: currentSocketId
+        });
+
+        // --- TIẾP TỤC LOGIC TẢI DỮ LIỆU GAME CỦA BẠN ---
+        let currentLives = data.lives !== undefined ? data.lives : 5;
+        let updatedAt = data.livesUpdatedAt || Date.now();
+        const REGEN_TIME = 4 * 60 * 60 * 1000;
+
+        if (currentLives < 5) {
+          let now = Date.now();
+          let timePassed = now - updatedAt;
+          let livesToRecover = Math.floor(timePassed / REGEN_TIME);
+
+          if (livesToRecover > 0) {
+            currentLives += livesToRecover;
+            if (currentLives >= 5) {
+              currentLives = 5;
+              updatedAt = now;
+            } else {
+              updatedAt += livesToRecover * REGEN_TIME;
+            }
+          }
+        } else {
+          updatedAt = Date.now();
+        }
+
+        gsRef.current.bestScore = Math.max(data.highScore || 0, guestBestScore);
+        gsRef.current.coins = (data.coins || 0) + guestCoins;
+        gsRef.current.lives = currentLives;
+        gsRef.current.livesUpdatedAt = updatedAt;
+        gsRef.current.inventory = data.inventory || { skins: ['classic'], bgs: ['deep'] };
+        gsRef.current.userSettings = data.equipped || { skin: 'classic', bg: 'deep' };
+        
       } else {
-        updatedAt = Date.now();
+        // Tạo profile mới nếu lần đầu đăng nhập
+        const newProfile = {
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+          highScore: guestBestScore,
+          coins: guestCoins,
+          lives: 5,
+          livesUpdatedAt: Date.now(),
+          inventory: { skins: ['classic'], bgs: ['deep'] },
+          equipped: { skin: 'classic', bg: 'deep' },
+          isOnline: true, // Đánh dấu online ngay khi tạo
+          last_session_id: currentSocketId
+        };
+        await setDoc(userRef, newProfile);
+        gsRef.current = { ...gsRef.current, ...newProfile };
       }
 
-      gsRef.current.bestScore = Math.max(data.highScore || 0, guestBestScore);
-      gsRef.current.coins = (data.coins || 0) + guestCoins;
-      gsRef.current.lives = currentLives;
-      gsRef.current.livesUpdatedAt = updatedAt;
-      gsRef.current.inventory = data.inventory || { skins: ['classic'], bgs: ['deep'] };
-      gsRef.current.userSettings = data.equipped || { skin: 'classic', bg: 'deep' };
+      if (guestCoins > 0) localStorage.removeItem('astro_guest_coins');
+
+      setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins, lives: gsRef.current.lives }));
+      saveUserProfile();
       
-    } else {
-      const newProfile = {
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        highScore: guestBestScore, 
-        coins: guestCoins,         
-        lives: 5,
-        livesUpdatedAt: Date.now(),
-        inventory: { skins: ['classic'], bgs: ['deep'] },
-        equipped: { skin: 'classic', bg: 'deep' },
-      };
-      await setDoc(userRef, newProfile);
-      gsRef.current = { ...gsRef.current, ...newProfile };
+    } catch (error) {
+      console.error("Lỗi khi tải hồ sơ:", error);
+      toast.error("Không thể kết nối máy chủ để kiểm tra trạng thái đăng nhập!");
     }
-
-    if (guestCoins > 0) localStorage.removeItem('astro_guest_coins');
-
-    setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins, lives: gsRef.current.lives }));
-    saveUserProfile(); 
   };
 
   const saveUserProfile = async () => {
@@ -1557,6 +1591,18 @@ export default function Game() {
 
     return () => clearInterval(timer);
   }, [currentUser, uiUpdates.lives]);
+  useEffect(() => {
+    const handleUnload = () => {
+      if (currentUser) {
+        const userRef = doc(db, "users", currentUser.uid);
+        // Dùng updateDoc bình thường hoặc navigator.sendBeacon nếu cần
+        updateDoc(userRef, { isOnline: false });
+      }
+    };
+
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, [currentUser]);
   return (
     <div style={{ width: '100%', height: '100dvh', position: 'relative', backgroundColor: '#0d0e15' }}>
       
