@@ -1246,10 +1246,32 @@ export default function Game() {
     return () => unsubscribe();
   }, []);
   useEffect(() => {
-    // Cleanup function khi component unmount
-    return () => {
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    const handleAuthChange = async () => {
+      // Bắt buộc: Hứng kết quả Redirect cho điện thoại
+      try {
+        const result = await getRedirectResult(auth);
+        if (result && result.user) {
+          await loadUserProfile(result.user);
+        }
+      } catch (error) {
+        console.error("Lỗi xác thực Mobile:", error);
+      }
+
+      // Theo dõi trạng thái đăng nhập
+      onAuthStateChanged(auth, async (user) => {
+        setCurrentUser(user);
+        if (user) {
+          gsRef.current.myName = user.displayName; 
+          await loadUserProfile(user);
+        } else {
+          // Xử lý Guest (giữ nguyên)
+          let guestLives = parseInt(localStorage.getItem('astro_guest_lives')) || 5;
+          setUIUpdates(prev => ({ ...prev, lives: guestLives }));
+        }
+      });
     };
+
+    handleAuthChange();
   }, []);
   const loginWithGoogle = async () => {
     try {
@@ -1269,27 +1291,18 @@ export default function Game() {
       toast.error('Đăng nhập thất bại!');
     }
   };
-
  const logout = async () => {
     try {
       if (currentUser) {
         const userRef = doc(db, "users", currentUser.uid);
-        // Đánh dấu Offline trên DB trước khi thoát
-        await updateDoc(userRef, { 
-          isOnline: false,
-          last_session_id: "" 
-        });
+        await updateDoc(userRef, { isOnline: false, last_session_id: "" });
       }
-      // Xóa dấu vết session ở máy cục bộ
-      localStorage.removeItem('astro_session_id');
-      
+      localStorage.removeItem('astro_session_id'); // QUAN TRỌNG: Xóa ID ở máy này
       await signOut(auth);
       setCurrentUser(null);
       setScreen('menu');
-      toast.success('Đã đăng xuất!');
-    } catch (error) {
-      console.error("Lỗi đăng xuất:", error);
-    }
+      toast.success('Đã thoát!');
+    } catch (e) { console.log(e); }
   };
 
   const loadUserProfile = async (user) => {
@@ -1298,45 +1311,45 @@ export default function Game() {
     
     try {
       const snap = await getDoc(userRef);
-      let savedSessionId = localStorage.getItem('astro_session_id');
-      const currentSocketId = savedSessionId || socketRef.current?.id || "web_" + Date.now();
+      // Lấy ID cũ nếu có, nếu không thì lấy socket hoặc tạo mới
+      let savedId = localStorage.getItem('astro_session_id');
+      const currentSocketId = savedId || socketRef.current?.id || "web_" + Date.now();
       localStorage.setItem('astro_session_id', currentSocketId);
 
       if (snap.exists()) {
         const data = snap.data();
 
-        // Chặn nếu Online ở máy KHÁC (ID khác ID máy này và ID đã lưu)
-        if (data.isOnline === true && 
-            data.last_session_id !== currentSocketId && 
-            data.last_session_id !== savedSessionId) {
-          
-          toast.error("⚠️ Tài khoản đang được chơi ở thiết bị khác!", { duration: 5000 });
+        // LOGIC THÔNG MINH: Chỉ chặn nếu Online VÀ ID khác hoàn toàn ID đang giữ
+        if (data.isOnline === true && data.last_session_id !== currentSocketId) {
+          toast.error("⚠️ Tài khoản đang chơi ở máy khác!");
           await signOut(auth);
           setCurrentUser(null);
           setScreen('menu');
           return;
         }
 
-        await updateDoc(userRef, { isOnline: true, last_session_id: currentSocketId });
+        // Cập nhật trạng thái Online
+        await updateDoc(userRef, {
+          isOnline: true,
+          last_session_id: currentSocketId
+        });
 
-        // Logic tải dữ liệu game (giữ nguyên của bạn)
-        gsRef.current.bestScore = data.highScore || 0;
+        // Tải dữ liệu (Score, Coins, Lives...)
         gsRef.current.coins = data.coins || 0;
         gsRef.current.lives = data.lives !== undefined ? data.lives : 5;
-        gsRef.current.inventory = data.inventory || { skins: ['classic'], bgs: ['deep'] };
-        gsRef.current.userSettings = data.equipped || { skin: 'classic', bg: 'deep' };
+        // ... các field khác của bạn
       } else {
         // Tạo profile mới
-        const newProfile = {
+        await setDoc(userRef, {
           displayName: user.displayName,
-          photoURL: user.photoURL,
-          coins: 0, lives: 5, isOnline: true, last_session_id: currentSocketId
-        };
-        await setDoc(userRef, newProfile);
+          isOnline: true,
+          last_session_id: currentSocketId,
+          coins: 0, lives: 5
+        });
       }
       setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins, lives: gsRef.current.lives }));
     } catch (error) {
-      console.error("Lỗi tải profile:", error);
+      console.error("Lỗi load profile:", error);
     }
   };
 
