@@ -1,346 +1,150 @@
-# 🎯 Installation Checklist & Setup Commands
+🎯 Installation Checklist & Setup Commands
+✅ 1. What Was Created & Updated
+Root Directory
+.gitignore - Git ignore config
 
-## ✅ What Was Created
+README.md - Main documentation
 
-### Root Directory Files
-```
-✅ .gitignore                    - Git ignore config
-✅ README.md                     - Main documentation (features & deployment)
-✅ QUICKSTART.md                 - Quick setup guide with troubleshooting
-✅ MIGRATION.md                  - Technical details of PeerJS → Socket.io conversion
-✅ PROJECT_SUMMARY.md            - Project overview & status
-✅ SETUP.md                      - This file (installation instructions)
-```
+QUICKSTART.md - Quick setup guide
 
-### Backend (Node.js + Express + Socket.io)
-```
+MIGRATION.md - Technical evolution details
+
+PROJECT_SUMMARY.md - Project overview
+
+SETUP.md - This file
+
+Backend (Node.js + Express + Socket.io)
 server/
-├── ✅ .env                      - Environment config (PORT, CLIENT_URL)
-├── ✅ .gitignore                - Node modules ignore
-├── ✅ package.json              - Dependencies (express, socket.io, cors)
-└── ✅ server.js                 - Main server (room management, Socket handlers)
-     - Room creation/joining
-     - Player connection handling
-     - Game state sync
-     - Auto-cleanup on disconnect
-```
 
-### Frontend (React + Vite + Socket.io-client)
-```
+.env - Environment config (PORT, CLIENT_URL)
+
+package.json - Dependencies
+
+server.js - Main server (Socket handlers, Room management)
+
+Frontend (React + Vite + Firebase)
 client/
-├── ✅ .env                      - Environment config (VITE_SOCKET_URL)
-├── ✅ .gitignore                - Node modules ignore
-├── ✅ vite.config.js            - Vite build configuration
-├── ✅ package.json              - Dependencies (react, socket.io-client)
-├── ✅ index.html                - HTML template with embedded CSS
-├── src/
-│   ├── ✅ App.jsx               - Main game component (~800 LOC)
-│   │    - Canvas rendering
-│   │    - Game mechanics (cat, pipes, collisions)
-│   │    - Socket.io events
-│   │    - Game state management
-│   │    - UI screen rendering
-│   ├── ✅ main.jsx              - React entry point
-│   ├── ✅ index.css             - Minimal CSS (styles in HTML)
-│   └── components/              - (Empty, ready for expansion)
-└── public/
-    ├── ✅ style.css             - CSS reference copy
-    └── (favicon & assets location)
-```
 
-### Original Files (For Reference)
-```
-styles/
-└── ✅ style.css                 - Original CSS from HTML (550+ lines)
+.env - Environment config (VITE_SOCKET_URL, VITE_FIREBASE_*)
 
-✅ plappy_v5.html               - Original PeerJS version
-```
+capacitor.config.ts - Mobile wrapper configuration
 
----
+package.json - Dependencies (react, firebase, capacitor, admob)
 
-## 📋 Installation Instructions
+src/App.jsx - Main game component (Canvas, Auth, AdMob, Logic)
 
-### Prerequisites Check
-```bash
-# Check Node.js version (need v14+)
-node --version
+src/firebase.js - Firebase initialization
 
-# Check npm version
-npm --version
-```
+src/constants.js - Game configs (Skins, Backgrounds, Physics)
 
-### Step 1: Backend Setup
-```bash
-# Navigate to server directory
+Mobile (Native Android)
+android/
+
+app/src/main/AndroidManifest.xml - Android permissions and AdMob App ID
+
+app/build.gradle - Version Code and Version Name for Play Store
+
+📋 2. Firebase Configuration (CRITICAL)
+Before running the game, you must configure Firebase:
+
+Create a Firebase Project: Go to console.firebase.google.com.
+
+Enable Authentication: Go to Build -> Authentication. Enable the "Google" sign-in provider.
+
+Add Authorized Domains: In Authentication -> Settings -> Authorized domains, ensure you add:
+
+localhost
+
+https://www.google.com/search?q=your-app.onrender.com (Your production backend/frontend URL)
+
+Enable Firestore Database: Go to Build -> Firestore Database. Create a database and set up basic security rules (e.g., allow read/write if request.auth != null).
+
+Get Config: Go to Project Settings -> General, create a Web App, and copy the firebaseConfig keys for your .env file.
+
+💰 3. AdMob Configuration
+To enable Rewarded Video Ads on Android:
+
+Create an AdMob Account: Go to https://www.google.com/search?q=apps.admob.com.
+
+Add an App: Select Android, and copy your AdMob App ID.
+
+Create an Ad Unit: Create a "Rewarded Ad" unit and copy the Ad Unit ID.
+
+Update Android Manifest: Paste your AdMob App ID into the <meta-data> tag inside client/android/app/src/main/AndroidManifest.xml.
+
+Update App.jsx: Replace the test Ad Unit ID in the watchAd function with your real Ad Unit ID (when ready for production).
+
+💻 4. Installation Commands
+Step 1: Backend Setup
 cd server
-
-# Install dependencies
 npm install
-# Installs: express, socket.io, cors, dotenv
+(Installs express, socket.io, cors, dotenv)
 
-# Verify installation
-npm list
-```
-
-### Step 2: Frontend Setup
-```bash
-# Navigate to client directory
+Step 2: Frontend Setup
 cd ../client
-
-# Install dependencies
 npm install
-# Installs: react, react-dom, socket.io-client, vite, @vitejs/plugin-react
+(Installs react, firebase, socket.io-client, @capacitor/core, @capacitor-community/admob)
 
-# Verify installation
-npm list
-```
+🔧 5. Environment Variables
+Create the necessary .env files before starting.
 
-### Step 3: Start Backend
-```bash
-# In server/ directory
-npm start
+server/.env:
+PORT=3000
+CLIENT_URL=http://localhost:5173
+NODE_ENV=development
 
-# Expected output:
-# 🚀 Server running on http://localhost:3000
-```
+client/.env:
+VITE_SOCKET_URL=http://localhost:3000
+VITE_FIREBASE_API_KEY=your_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_https://www.google.com/search?q=project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_https://www.google.com/search?q=project.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
 
-### Step 4: Start Frontend (New Terminal)
-```bash
-# In client/ directory
-npm run dev
+🎮 6. Testing Checklist
+After installation, verify these scenarios:
 
-# Expected output:
-# Local:   http://localhost:5173
-# press h + enter to show help
-```
+✅ Services Running
 
-### Step 5: Play!
-```bash
-# Open browser to http://localhost:5173
-# Click "🚀 Solo" or "⚔️ PvP"
-```
+Backend runs on port 3000 without crashing.
 
----
+Frontend loads on http://localhost:5173.
 
-## 🔧 Configuration Files
+✅ Authentication & Database
 
-### server/.env
-```env
-PORT=3000                             # Backend server port
-CLIENT_URL=http://localhost:5173      # Frontend URL (for CORS)
-NODE_ENV=development                  # Environment mode
-```
+Click "Login with Google".
 
-### client/.env
-```env
-VITE_SOCKET_URL=http://localhost:3000 # Socket.io server URL
-```
+Popup appears on Desktop Web, Redirect works on Mobile Web.
 
-**To play on different machines:**
-1. Find your PC IP: `ipconfig` (Windows) or `ifconfig` (Mac/Linux)
-2. Update client/.env: `VITE_SOCKET_URL=http://YOUR_IP:3000`
-3. Access frontend: `http://YOUR_IP:5173`
+High scores, coins, and lives load correctly from Firestore.
 
----
+Cross-Device Block: Open a second tab, try to log in, and verify the "Account played on another device" error appears.
 
-## 🎮 Testing Checklist
+✅ Gameplay & Multiplayer
 
-After installation, test these scenarios:
+Single Player: Play, die, and check if Lives decrease.
 
-### ✅ Backend Running
-```bash
-curl http://localhost:3000
-# Should respond or error (not "connection refused")
-```
+Multiplayer: Create a room on Tab 1, join on Tab 2, and verify real-time syncing.
 
-### ✅ Frontend Loading
-- Open http://localhost:5173
-- Should see: "ASTRO CAT 5" title
-- No errors in browser console (F12)
+✅ Monetization
 
-### ✅ Single Player
-1. Click "🚀 Solo"
-2. Press Space to jump
-3. Score should increase
-4. Game should end when hitting pipe
+Click "Watch Ad" for Coins or Lives.
 
-### ✅ Multiplayer (Same Machine)
-1. Browser Tab 1: http://localhost:5173
-   - Click "⚔️ PvP"
-   - Enter name "Player1"
-   - Click "⚡ CREATE ROOM"
-   - Note room code (e.g., 5432)
+Web Browser: Verify the 3-second fake ad toast appears and rewards are given.
 
-2. Browser Tab 2: http://localhost:5173
-   - Click "⚔️ PvP"
-   - Enter name "Player2"
-   - Enter room code "5432"
-   - Click "JOIN"
+Android APK: Verify the actual AdMob video plays.
 
-3. Both should see "Game starting..."
-4. Both can play simultaneously
-5. Scores should sync in real-time
-6. Game ends when both die
+📱 7. Building for Android
+When ready to package the game for the Google Play Store:
 
----
-
-## 📦 Dependencies Installed
-
-### Backend (server/package.json)
-```json
-{
-  "express": "^4.18.2",      // Web framework
-  "socket.io": "^4.5.4",     // Real-time communication
-  "cors": "^2.8.5",          // Cross-origin requests
-  "dotenv": "^16.0.0"        // Environment variables
-}
-```
-
-### Frontend (client/package.json)
-```json
-{
-  "react": "^18.2.0",                // UI framework
-  "react-dom": "^18.2.0",            // React DOM
-  "socket.io-client": "^4.5.4",      // Socket.io client
-  "vite": "^4.0.0",                  // Build tool
-  "@vitejs/plugin-react": "^3.0.0"   // React plugin for Vite
-}
-```
-
----
-
-## 🚀 Build for Production
-
-### Frontend Build
-```bash
+Build React Web Assets:
 cd client
 npm run build
-# Creates: client/dist/ folder
-# Ready to deploy on static hosting
-```
 
-### Backend Production
-```bash
-cd server
-NODE_ENV=production npm start
-# Runs optimized version
-# Use PM2 for persistent running:
-npm install -g pm2
-pm2 start server.js --name "astro-cat"
-```
+Sync with Android Project:
+npx cap sync android
 
----
-
-## 🐛 Common Issues & Solutions
-
-### Issue: "Connection ECONNREFUSED"
-**Cause:** Backend not running
-**Solution:** 
-```bash
-cd server
-npm start
-```
-
-### Issue: "Port 3000 already in use"
-**Solution (Mac/Linux):**
-```bash
-lsof -ti:3000 | xargs kill -9
-npm start
-```
-**Solution (Windows):**
-```bash
-netstat -ano | findstr :3000
-taskkill /PID <PID> /F
-npm start
-```
-
-### Issue: Vite port already in use
-**Solution:** Change port in vite.config.js:
-```javascript
-server: { port: 5174 } // or different port
-```
-
-### Issue: "npm not found"
-**Solution:** Install Node.js from nodejs.org
-
-### Issue: Game unresponsive
-**Solution:** 
-1. Hard refresh: Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)
-2. Check browser console (F12)
-3. Restart both servers
-
----
-
-## ✅ Final Verification
-
-Run through this checklist:
-
-- [ ] Node.js v14+ installed
-- [ ] node --version works
-- [ ] npm --version works
-- [ ] server/ npm install completed
-- [ ] client/ npm install completed
-- [ ] server running: `npm start` (port 3000)
-- [ ] client running: `npm run dev` (port 5173)
-- [ ] Browser loads http://localhost:5173
-- [ ] No console errors (F12)
-- [ ] Single player works
-- [ ] Can create room
-- [ ] Can join room (2 tabs/windows)
-- [ ] Scores sync in real-time
-- [ ] Game ends correctly
-
----
-
-## 🎓 File Locations Quick Reference
-
-| File | Location | Purpose |
-|------|----------|---------|
-| Main Game Logic | client/src/App.jsx | React component with all game code |
-| Socket Server | server/server.js | Express server with Socket.io |
-| Backend Config | server/.env | Port and client URL |
-| Frontend Config | client/.env | Socket server URL |
-| HTML Template | client/index.html | App container and CSS |
-| Build Config | client/vite.config.js | Vite bundler settings |
-
----
-
-## 🚀 Next Steps
-
-1. **Play Locally**: Follow steps 1-5 above
-2. **Test Multiplayer**: Two browsers on same machine
-3. **Try on Phone**: Update .env with PC IP
-4. **Deploy**: See README.md for deployment options
-5. **Customize**: Modify colors, speed, settings in App.jsx
-
----
-
-## 📞 Getting Help
-
-1. Check console errors: F12 → Console tab
-2. Read QUICKSTART.md for detailed troubleshooting
-3. Check MIGRATION.md for technical details
-4. Review App.jsx comments for code explanation
-
----
-
-## 🎉 You're Ready!
-
-```bash
-# Terminal 1 - Backend
-cd server && npm start
-
-# Terminal 2 - Frontend  
-cd client && npm run dev
-
-# Browser
-http://localhost:5173
-```
-
-**Enjoy your game! 🚀🐱**
-
----
-
-**Setup Date:** February 23, 2025
-**Project:** Astro Cat 5.0 - Socket.io Edition
-**Status:** ✅ Ready to Use
+Open Android Studio:
+npx cap open android
+(From here, you can generate a signed APK or AAB bundle).

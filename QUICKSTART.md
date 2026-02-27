@@ -1,238 +1,94 @@
-# 🚀 Quick Start Guide - Astro Cat Socket.io Edition
+🚀 Quick Start Guide - Astro Cat Mobile Edition
+📋 Prerequisites
+Node.js (v18+ recommended)
 
-## Prerequisites
-- Node.js (v14+ recommended)
-- npm or yarn
+A Firebase Project (Authentication & Firestore enabled)
 
-## 📥 Installation
+Android Studio (Required only if building the native APK/AAB)
 
-### Step 1: Install Backend Dependencies
-```bash
+📥 Installation
+Step 1: Install Backend Dependencies
 cd server
 npm install
-```
 
-### Step 2: Install Frontend Dependencies
-```bash
-cd ../client
+Step 2: Install Frontend Dependencies
+cd client
 npm install
-```
 
-## 🎮 Running the Application
+🔧 Environment Configuration
+You need to set up environment variables for both the client and the server.
 
-### Terminal 1: Start Backend Server
-```bash
+1. Backend (server/.env)
+Create a .env file in the server/ directory:
+
+PORT=3000
+CLIENT_URL=http://localhost:5173
+NODE_ENV=development
+
+2. Frontend (client/.env)
+Create a .env file in the client/ directory with your Socket URL and Firebase config:
+
+VITE_SOCKET_URL=http://localhost:3000
+VITE_FIREBASE_API_KEY=your_api_key_here
+VITE_FIREBASE_AUTH_DOMAIN=your_https://www.google.com/search?q=project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_https://www.google.com/search?q=project.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
+
+🎮 Running Locally
+Terminal 1: Start Backend Server
 cd server
 npm start
-```
-✅ Server should start on `http://localhost:3000`
-You'll see: `🚀 Server running on http://localhost:3000`
+(Server should start on http://localhost:3000)
 
-### Terminal 2: Start Frontend (in a new terminal)
-```bash
+Terminal 2: Start Frontend (in a new terminal)
 cd client
 npm run dev
-```
-✅ Frontend should start on `http://localhost:5173`
-You'll see: `Local: http://localhost:5173`
+(Frontend should start on http://localhost:5173)
 
-## 🎯 Testing Locally
+Open your browser to http://localhost:5173 to test the web version!
 
-### Single Player
-1. Open browser → `http://localhost:5173`
-2. Click "🚀 Solo"
-3. Play and beat your score!
+📱 Building the Android App (Capacitor)
+To package the web game into a native Android app with AdMob support:
 
-### Two Player Online (Same Machine)
-1. Open first browser window → `http://localhost:5173`
-   - Click "⚔️ PvP"
-   - Enter name
-   - Click "⚡ CREATE ROOM"
-   - Copy room code
-
-2. Open second browser tab/window → `http://localhost:5173`
-   - Click "⚔️ PvP"
-   - Enter different name
-   - Paste room code
-   - Click "JOIN"
-
-3. Both players should see "Game starting..." and game begins
-4. Play simultaneously and see scores update in real-time!
-
-### Two Player Online (Different Machines)
-1. Backend server must be accessible from both machines
-2. Update `client/.env`:
-   ```
-   VITE_SOCKET_URL=http://[YOUR_PC_IP]:3000
-   ```
-3. Both players open `http://[YOUR_PC_IP]:5173`
-4. Follow same steps as above
-
-## 🔧 Environment Configuration
-
-### server/.env
-```
-PORT=3000                          # Server port
-CLIENT_URL=http://localhost:5173   # Frontend URL
-NODE_ENV=development               # Environment
-```
-
-### client/.env
-```
-VITE_SOCKET_URL=http://localhost:3000  # Socket.io server URL
-```
-
-## 📊 Troubleshooting
-
-### "Cannot connect to server"
-- ✅ Check if backend is running
-- ✅ Verify port 3000 is not in use
-- ✅ Check `VITE_SOCKET_URL` in client/.env
-
-### "CORS errors"
-- ✅ Backend CORS allows frontend URL
-- ✅ Socket.io CORS is configured
-
-### "Game doesn't start"
-- ✅ Check browser console for errors
-- ✅ Verify both players connected (console: `✅ Connected`)
-- ✅ Hard refresh: Ctrl+F5
-
-### "Scores not syncing"
-- ✅ Check Network tab in DevTools
-- ✅ Look for "game-update" events
-- ✅ Verify opponent is connected
-
-## 💻 Production Deployment
-
-### Build Frontend
-```bash
+Build the React project for production:
 cd client
 npm run build
-```
-Creates `client/dist/` folder
 
-### Deploy Backend
-```bash
-cd server
-NODE_ENV=production npm start
-```
+Sync the built web assets with the Android project:
+npx cap sync android
 
-### Using PM2 (Recommended)
-```bash
-npm install -g pm2
-pm2 start server/server.js --name "astro-cat"
-```
+Open Android Studio to build the signed APK/AAB:
+npx cap open android
 
-### Environment for Production
-Update `.env` files with production URLs:
-```
-VITE_SOCKET_URL=https://your-server-url.com
-CLIENT_URL=https://your-frontend-url.com
-```
+Note: Before building your final release for the Google Play Store, remember to increment the versionCode and versionName inside android/app/build.gradle.
 
-## 📱 Testing Mobile
+📊 Troubleshooting
+"Cannot connect to server" (Socket.io)
 
-### Local Network
-1. Open terminal and find your PC IP:
-   ```bash
-   ipconfig  # Windows
-   ifconfig  # Mac/Linux
-   ```
+Check if the backend is running on port 3000.
 
-2. Update `client/.env`:
-   ```
-   VITE_SOCKET_URL=http://192.168.x.x:3000
-   ```
+Verify VITE_SOCKET_URL in your client/.env matches your backend address.
 
-3. On mobile, visit: `http://192.168.x.x:5173`
+"Popup blocked" or "Unauthorized Domain" (Firebase Auth)
 
-## 🐛 Debug Mode
+If testing on mobile web, ensure your production hosting domain (e.g., https://www.google.com/search?q=astro-cat.onrender.com) and localhost are added to the Authorized domains list in Firebase Console -> Authentication -> Settings.
 
-### Backend Logs
-- Server logs all connections and room events
-- Check console for: `✅`, `💀`, `🎮`, `🏁` emojis
+"Account is being played on another device"
 
-### Frontend Console
-- Press F12 in browser
-- Check Console tab for Socket.io events
-- Look for: "Connected", "game-start", "opponent-update"
+This is your custom Session Locking system working!
 
-## 🎨 Customization
+If a session gets stuck while testing or reloading, go to your Firestore Database, find your user document, and manually set 'isOnline' to false.
 
-### Change Game Speed
-In `client/src/App.jsx`, find:
-```javascript
-gameSpeed: 3 + (level - 1) * 0.6
-```
+"Port 3000 already in use"
 
-### Adjust Difficulty
-Modify pipe gaps and spawn rates
+Mac/Linux: run 'lsof -ti:3000 | xargs kill -9'
 
-### Change Colors
-Edit background/skin definitions in BACKGROUNDS and SKINS arrays
+Windows: run 'netstat -ano | findstr :3000' and kill the PID.
 
-### Add Sound
-All sounds use Web Audio API - modify the Sound object
+AdMob Ads Not Showing
 
-## 📚 File Structure Reference
+On the web, the game will automatically run a "Fake Ad" timer to ensure development and PC gameplay are not interrupted.
 
-```
-astro-cat/
-├── server/
-│   ├── server.js           # Main server
-│   ├── package.json        # Dependencies
-│   └── .env                # Config
-├── client/
-│   ├── src/
-│   │   ├── App.jsx         # Game logic
-│   │   └── main.jsx        # Entry
-│   ├── index.html          # Template
-│   ├── vite.config.js      # Build config
-│   └── .env                # Config
-└── README.md               # This file
-```
-
-## ✅ Checklist Before Launch
-
-- [ ] Node.js installed
-- [ ] Both npm installs completed
-- [ ] Backend running on :3000
-- [ ] Frontend running on :5173
-- [ ] Browser opens without errors
-- [ ] Single player works
-- [ ] Can create room
-- [ ] Can join room
-- [ ] Scores sync in real-time
-- [ ] Game ends correctly
-
-## 🎓 Key Differences: PeerJS → Socket.io
-
-| Feature | PeerJS | Socket.io |
-|---------|--------|-----------|
-| Connection Type | Peer-to-Peer | Server-Routed |
-| Firewall Issues | Common | Rare |
-| Latency | Lower (Direct) | Slight Overhead |
-| Scalability | Difficult | Easy |
-| Server Required | No | Yes |
-| Room Management | Client-side | Server-side |
-
-## 💡 Tips
-
-1. **Best Performance**: Use wired connection for lower latency
-2. **Room Codes**: Numbers only, 4 digits (1000-9999)
-3. **Name Length**: Max 12 characters
-4. **Mobile**: Works best on portrait mode
-5. **Scores**: Saved to localStorage automatically
-
-## 📞 Support
-
-For issues:
-1. Check console errors (F12)
-2. Verify all services running
-3. Try hard refresh (Ctrl+Shift+R)
-4. Restart both servers
-
----
-**Astro Cat v5.0 - Socket.io Edition**
-Enjoy your game! 🚀🐱
+Real AdMob video ads will only appear when running on a physical Android device or emulator after building through Android Studio.
