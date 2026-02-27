@@ -1,50 +1,167 @@
 import React from 'react';
 
-export default function Leaderboard({ leaderboardMode, isLoadingLeaderboard, leaderboardData, openLeaderboard, setScreen }) {
-  return (
-    <div className="ui-layer" style={{ background: 'rgba(0,0,0,0.95)', zIndex: 50, overflowY: 'auto', justifyContent: 'flex-start', paddingTop: '40px', paddingBottom: '40px' }}>
-      <div className="title" style={{ fontSize: '40px' }}>BẢNG XẾP HẠNG</div>
-      <div className="tab-container">
-        <button className={`tab-btn ${leaderboardMode === 'single' ? 'active' : ''}`} onClick={() => openLeaderboard('single')}>CHƠI ĐƠN</button>
-        <button className={`tab-btn ${leaderboardMode === 'pvp' ? 'active' : ''}`} onClick={() => openLeaderboard('pvp')}>PVP ĐÔI</button>
+// --- HẰNG SỐ MÀU SẮC & STYLE CHUNG ---
+const THEME = {
+  bgOverlay: 'rgba(0, 8, 20, 0.95)',
+  bgCard: '#0a192f',               
+  borderCyan: '#0abde3',          
+  borderGold: '#FFD700',          
+  textMain: '#fff',
+  textSub: '#aaa',
+  fontPixel: "'VT323', monospace", 
+  cyanGlow: '0 0 15px rgba(10, 189, 227, 0.6)', 
+  goldGlow: '0 0 15px rgba(255, 215, 0, 0.5)',  
+};
+
+export default function Leaderboard({ leaderboardMode, isLoadingLeaderboard, leaderboardData, openLeaderboard, setScreen, currentUser }) {
+  
+  // --- HÀM HỖ TRỢ: BIỂU TƯỢNG XẾP HẠNG ---
+  const renderRankIcon = (index) => {
+    if (index === 0) return <span style={{ fontSize: '28px', color: THEME.borderGold }}>🥇</span>;
+    if (index === 1) return <span style={{ fontSize: '26px', color: '#C0C0C0' }}>🥈</span>;
+    if (index === 2) return <span style={{ fontSize: '24px', color: '#CD7F32' }}>🥉</span>;
+    return <span style={{ fontSize: '20px', color: THEME.textSub, fontFamily: THEME.fontPixel }}>#{index + 1}</span>;
+  };
+  // --- HÀM HỖ TRỢ: PHÂN TÍCH & HIỂN THỊ TÊN PVP ---
+  const renderWarriorName = (rawName) => {
+    if (leaderboardMode === 'single') {
+      return (
+        <span style={{ fontSize: '22px', fontWeight: 'bold', color: '#ffffff', maxWidth: '180px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block' }}>
+          {rawName}
+        </span>
+      );
+    }
+
+    // Biểu tượng phân cách 
+    const separator = '⚔️';
+
+    // Nếu dữ liệu không có biểu tượng ⚔️ (dữ liệu cũ), in ra chữ màu trắng sáng
+    if (!rawName.includes(separator)) {
+      return <span style={{ fontSize: '20px', color: '#ffffff' }}>{rawName}</span>;
+    }
+
+    // Tách thành 2 phần: TênMình(ĐiểmMình) và TênĐốiThủ(ĐiểmĐốiThủ)
+    const parts = rawName.split(separator);
+
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%', fontSize: '18px' }}>
+        {/* Người bên trái (Màu Cyan sáng rực) */}
+        <span style={{ 
+          flex: 1, textAlign: 'right', color: '#0abde3', fontWeight: 'bold', 
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px' 
+        }}>
+          {parts[0].trim()}
+        </span>
+        
+        {/* Biểu tượng ⚔️ */}
+        <span style={{ fontSize: '18px', textShadow: '0 0 8px rgba(255,255,255,0.4)', color: '#fff' }}>
+          {separator}
+        </span>
+        
+        {/* Người bên phải (Đổi từ xám đen sang Trắng Tinh để dễ đọc) */}
+        <span style={{ 
+          flex: 1, textAlign: 'left', color: '#ffffff', fontWeight: 'normal',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px' 
+        }}>
+          {parts[1].trim()}
+        </span>
       </div>
-      {isLoadingLeaderboard ? (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', gap: '20px' }}>
-          <div style={{ fontSize: '24px', color: '#FFD700' }}>Đang tải bảng xếp hạng...</div>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <div style={{ width: '10px', height: '10px', background: '#FFD700', borderRadius: '50%', animation: 'bounce 0.6s infinite' }}></div>
-            <div style={{ width: '10px', height: '10px', background: '#FFD700', borderRadius: '50%', animation: 'bounce 0.6s infinite 0.2s' }}></div>
-            <div style={{ width: '10px', height: '10px', background: '#FFD700', borderRadius: '50%', animation: 'bounce 0.6s infinite 0.4s' }}></div>
-          </div>
-          <style>{`@keyframes bounce { 0%, 100% { transform: translateY(0); opacity: 0.5; } 50% { transform: translateY(-10px); opacity: 1; } }`}</style>
+    );
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+      backgroundColor: THEME.bgOverlay, zIndex: 10000,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      backdropFilter: 'blur(5px)',
+      fontFamily: THEME.fontPixel,
+    }}>
+      <div style={{
+        width: '90%', maxWidth: '450px', height: '85%', maxHeight: '700px',
+        backgroundColor: '#000814', borderRadius: '15px',
+        border: `3px solid ${THEME.borderCyan}`, boxShadow: THEME.cyanGlow,
+        display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative',
+      }}>
+        
+        {/* HEADER */}
+        <div style={{ padding: '20px', borderBottom: `2px solid #111`, textAlign: 'center' }}>
+          <h1 style={{ color: THEME.borderCyan, margin: 0, fontSize: '32px', textShadow: THEME.cyanGlow, textTransform: 'uppercase' }}>
+            Huyền Thoại Không Gian
+          </h1>
+          {/* Nút thoát về Menu bằng setScreen('menu') thay vì onClose */}
+          <button onClick={() => setScreen('menu')} style={{
+            position: 'absolute', top: '15px', right: '15px',
+            background: 'none', border: 'none', color: '#ff4757', fontSize: '28px', cursor: 'pointer'
+          }}>✖</button>
         </div>
-      ) : (
-        <div className="leaderboard-box">
-          <table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>{leaderboardMode === 'pvp' ? 'CẶP ĐẤU (P1 vs P2)' : 'TÊN NGƯỜI CHƠI'}</th>
-                <th>ĐIỂM</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leaderboardData.length === 0 ? (
-                <tr><td colSpan="3" style={{ textAlign: 'center', padding: '8px' }}>Chưa có dữ liệu</td></tr>
-              ) : (
-                leaderboardData.map((item, index) => (
-                  <tr key={index}>
-                    <td>{index + 1}</td>
-                    <td style={{ color: index === 0 ? '#FFD700' : 'white' }}>{item.name}</td>
-                    <td>{item.score}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+
+        {/* TABS (Dùng openLeaderboard để fetch data mới) */}
+        <div style={{ display: 'flex', borderBottom: `2px solid #111` }}>
+          <button onClick={() => openLeaderboard('single')} style={{
+            flex: 1, padding: '15px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '22px',
+            color: leaderboardMode === 'single' ? THEME.borderGold : THEME.textSub,
+            borderBottom: leaderboardMode === 'single' ? `4px solid ${THEME.borderGold}` : 'none',
+            transition: 'all 0.3s'
+          }}>🥇 ĐƠN</button>
+          
+          <button onClick={() => openLeaderboard('pvp')} style={{
+            flex: 1, padding: '15px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '22px',
+            color: leaderboardMode === 'pvp' ? THEME.borderCyan : THEME.textSub,
+            borderBottom: leaderboardMode === 'pvp' ? `4px solid ${THEME.borderCyan}` : 'none',
+            transition: 'all 0.3s'
+          }}>⚔️ PVP</button>
         </div>
-      )}
-      <button className="btn btn-red" onClick={() => setScreen('menu')} style={{ width: '90%', maxWidth: '500px', marginTop: '10px' }}>ĐÓNG</button>
+
+        {/* DANH SÁCH KỶ LỤC */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '15px' }} className="leaderboard-scroll">
+          {isLoadingLeaderboard ? (
+            <div style={{ textAlign: 'center', marginTop: '50px' }}>
+              <p style={{ color: THEME.borderGold, fontSize: '24px', animation: 'float 1s infinite' }}>Đang tải dữ liệu...</p>
+            </div>
+          ) : leaderboardData.length === 0 ? (
+            <p style={{ textAlign: 'center', color: THEME.textSub, marginTop: '50px', fontSize: '18px' }}>Chưa có kỷ lục nào được ghi nhận...</p>
+          ) : (
+            leaderboardData.map((item, index) => {
+              // Highlight thẻ nếu tên trong thẻ trùng với tên người dùng hiện tại
+              const isMe = currentUser && item.name.includes(currentUser.displayName);
+              
+              return (
+                <div key={index} className="leaderboard-card" style={{
+                  display: 'flex', alignItems: 'center',
+                  backgroundColor: THEME.bgCard, borderRadius: '10px',
+                  padding: '15px', marginBottom: '12px',
+                  border: leaderboardMode === 'pvp' ? `2px solid #1a365d` : `2px solid #333`,
+                  borderLeft: isMe ? `5px solid ${leaderboardMode === 'pvp' ? THEME.borderCyan : THEME.borderGold}` : (leaderboardMode === 'pvp' ? `2px solid #1a365d` : `2px solid #333`),
+                  boxShadow: isMe ? (leaderboardMode === 'pvp' ? '0 0 10px rgba(10,189,227,0.3)' : '0 0 10px rgba(255,215,0,0.2)') : 'none',
+                  transition: 'all 0.2s ease-in-out',
+                }}>
+                  <div style={{ width: '45px', textAlign: 'center', marginRight: '10px' }}>
+                    {renderRankIcon(index)}
+                  </div>
+
+                  <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    {renderWarriorName(item.name)}
+                  </div>
+
+                  <div style={{ width: '80px', textAlign: 'right', marginLeft: '10px' }}>
+                    <span style={{ fontSize: '26px', color: THEME.borderGold, fontWeight: 'bold', textShadow: '1px 1px 0 #000' }}>
+                      {item.score}
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      <style>{`
+        .leaderboard-scroll::-webkit-scrollbar { width: 6px; }
+        .leaderboard-scroll::-webkit-scrollbar-track { background: transparent; }
+        .leaderboard-scroll::-webkit-scrollbar-thumb { background: #1a365d; border-radius: 3px; }
+        .leaderboard-scroll::-webkit-scrollbar-thumb:hover { background: ${THEME.borderCyan}; }
+      `}</style>
     </div>
   );
 }

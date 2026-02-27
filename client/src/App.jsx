@@ -420,13 +420,10 @@ export default function Game() {
       gsRef.current.myName = name;
       scoreToSend = gs.score;
     } else {
-      if (gs.score >= gs.remoteScore) {
-        name = `${gs.myName} 🏆 ${gs.remoteName}`;
-        scoreToSend = gs.score;
-      } else {
-        name = `${gs.remoteName} 🏆 ${gs.myName}`;
-        scoreToSend = gs.remoteScore;
-      }
+      // --- CODE LƯU ĐIỂM PVP MỚI ---
+      scoreToSend = gs.score;
+      // Định dạng chính xác như ảnh: "Tên Mình (Điểm Mình) ⚔️ Tên Địch (Điểm Địch)"
+      name = `${gs.myName} (${gs.score}) ⚔️ ${gs.remoteName} (${gs.remoteScore})`;
     }
 
     if (!isAuto) toast.loading('💾 Đang kiểm tra và lưu kỷ lục...', { id: 'saveScore' });
