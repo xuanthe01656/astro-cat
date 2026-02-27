@@ -7,6 +7,7 @@ import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuth
 import { AdMob, RewardAdPluginEvents } from '@capacitor-community/admob';
 import { Capacitor } from '@capacitor/core';
 
+
 // --- IMPORT CÁC HẰNG SỐ VÀ COMPONENT ĐÃ TÁCH ---
 import { SKINS, BACKGROUNDS, PIPE_DIST_DESKTOP, PIPE_DIST_MOBILE, MAX_Y_DIFF } from './constants';
 import Menu from './components/Menu';
@@ -71,6 +72,7 @@ export default function Game() {
   const [uiUpdates, setUIUpdates] = useState({ score: 0, level: 1 });
   const [currentUser, setCurrentUser] = useState(null);
   const [isWatchingAd, setIsWatchingAd] = useState(false);
+  const [webAd, setWebAd] = useState({ isPlaying: false, type: null });
 
   const gsRef = useRef({
     canvas: null,
@@ -1291,6 +1293,7 @@ export default function Game() {
         // Tải dữ liệu
         gsRef.current.coins = data.coins || 0;
         gsRef.current.lives = data.lives !== undefined ? data.lives : 5;
+        gsRef.current.livesUpdatedAt = data.livesUpdatedAt || Date.now();
         gsRef.current.bestScore = data.highScore || 0;
         gsRef.current.inventory = data.inventory || { skins: ['classic'], bgs: ['deep'] };
         gsRef.current.userSettings = data.equipped || { skin: 'classic', bg: 'deep' };
@@ -1476,25 +1479,34 @@ useEffect(() => {
 
   // Tách hàm giả lập ra riêng cho sạch code
   const runFakeAd = (rewardType) => {
-    const fakeToast = toast.loading('📺 Đang phát QC giả lập... (Vui lòng đợi 3s)');
-    
-    setTimeout(() => {
-      toast.dismiss(fakeToast);
-      setIsWatchingAd(false);
+    setWebAd({ isPlaying: true, type: rewardType });
+  };
+  // Người dùng xem đến giây cuối cùng -> Xử lý nhận thưởng
+  const handleWebAdComplete = () => {
+    const rewardType = webAd.type;
+    setWebAd({ isPlaying: false, type: null });
+    setIsWatchingAd(false);
 
-      if (rewardType === 'coin') {
-        gsRef.current.coins += 50; 
-        setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins }));
-        toast.success('🎁 Phần thưởng: +50 XU!');
-      } else if (rewardType === 'life') {
-        gsRef.current.lives += 1;  
-        setUIUpdates(prev => ({ ...prev, lives: gsRef.current.lives }));
-        toast.success('❤️ Phần thưởng: +1 MẠNG!');
-      }
-      
-      saveUserProfile(); 
-      pendingRewardRef.current = null;
-    }, 3000);
+    if (rewardType === 'coin') {
+      gsRef.current.coins += 50; 
+      setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins }));
+      toast.success('🎁 Phần thưởng: +50 XU!');
+    } else if (rewardType === 'life') {
+      gsRef.current.lives += 1;  
+      setUIUpdates(prev => ({ ...prev, lives: gsRef.current.lives }));
+      toast.success('❤️ Phần thưởng: +1 MẠNG!');
+    }
+    
+    if (currentUser) saveUserProfile(); 
+    pendingRewardRef.current = null;
+  };
+
+  // Người dùng bấm tắt giữa chừng -> Không cho thưởng
+  const handleWebAdClose = () => {
+    setWebAd({ isPlaying: false, type: null });
+    setIsWatchingAd(false);
+    pendingRewardRef.current = null;
+    toast.error('❌ Bạn chưa xem hết quảng cáo nên không nhận được thưởng!');
   };
   // ==========================================
   // BỘ ĐẾM NGƯỢC THỜI GIAN HỒI MẠNG (CHẠY NGẦM)
@@ -1649,7 +1661,42 @@ useEffect(() => {
           frameCount={frameCount}
         />
       )}
+      {/* --- GIAO DIỆN QUẢNG CÁO WEB (VIDEO MẪU) --- */}
+      {webAd.isPlaying && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+          backgroundColor: '#000', zIndex: 9999, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center'
+        }}>
+          {/* Nút Đóng */}
+          <button 
+            onClick={handleWebAdClose}
+            style={{
+              position: 'absolute', top: '20px', right: '20px', padding: '10px 20px',
+              backgroundColor: 'rgba(255,255,255,0.2)', color: '#fff', border: '2px solid #fff',
+              borderRadius: '8px', fontSize: '18px', cursor: 'pointer', zIndex: 10000,
+              fontFamily: "'VT323', monospace"
+            }}
+          >
+            ✖ Đóng
+          </button>
 
+          <p style={{ color: '#FFD700', marginBottom: '15px', fontSize: '24px', fontFamily: "'VT323', monospace" }}>
+            Đang phát video tài trợ... (Xem hết để nhận thưởng)
+          </p>
+
+          {/* Trình phát Video Mẫu (10 giây) */}
+          <video 
+            src="https://www.w3schools.com/html/mov_bbb.mp4" 
+            autoPlay 
+            playsInline
+            onEnded={handleWebAdComplete} 
+            style={{ width: '90%', maxWidth: '700px', borderRadius: '12px', border: '4px solid #333', boxShadow: '0 0 20px rgba(0,255,255,0.3)' }}
+          >
+            Trình duyệt của bạn không hỗ trợ video.
+          </video>
+        </div>
+      )}
       <Toaster 
         position="bottom-center" 
         reverseOrder={false} 
