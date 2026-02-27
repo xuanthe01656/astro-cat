@@ -78,10 +78,12 @@ export default function Leaderboard({ leaderboardMode, isLoadingLeaderboard, lea
       fontFamily: THEME.fontPixel,
     }}>
       <div style={{
-        width: '90%', maxWidth: '450px', height: '85%', maxHeight: '700px',
+        width: '95%', maxWidth: '450px', 
+        height: 'auto', maxHeight: '85vh', /* Chiều cao tự động, tối đa 85% màn hình */
         backgroundColor: '#000814', borderRadius: '15px',
         border: `3px solid ${THEME.borderCyan}`, boxShadow: THEME.cyanGlow,
         display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative',
+        pointerEvents: 'auto'
       }}>
         
         {/* HEADER */}
@@ -114,7 +116,14 @@ export default function Leaderboard({ leaderboardMode, isLoadingLeaderboard, lea
         </div>
 
         {/* DANH SÁCH KỶ LỤC */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '15px' }} className="leaderboard-scroll">
+        <div 
+          className="leaderboard-scroll"
+          style={{ 
+            flex: 1, overflowY: 'auto', padding: '15px', 
+            touchAction: 'pan-y', /* Cực kỳ quan trọng để vuốt trên mobile */
+            WebkitOverflowScrolling: 'touch' /* Hỗ trợ cuộn mượt trên iOS */
+          }} 
+        >
           {isLoadingLeaderboard ? (
             <div style={{ textAlign: 'center', marginTop: '50px' }}>
               <p style={{ color: THEME.borderGold, fontSize: '24px', animation: 'float 1s infinite' }}>Đang tải dữ liệu...</p>

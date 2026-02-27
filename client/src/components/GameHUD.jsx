@@ -1,9 +1,9 @@
 import React from 'react';
 
-export default function GameHUD({ gsRef, uiUpdates, frameCount, levelUpEffect, flipMute, togglePause }) {
+export default function GameHUD({ gsRef, uiUpdates, levelUpEffect, flipMute, togglePause }) {
   return (
     <>
-      <div style={{ display: 'none' }}>{frameCount}</div>
+      {/* <div style={{ display: 'none' }}>{frameCount}</div> */}
       {gsRef.current.gameMode === 'single' && (
         <>
           <div id="scoreHud" className="hud" style={{ display: 'block', position: 'absolute', top: '20px', left: '20px', fontSize: '48px', color: '#FFD700', zIndex: 1000, pointerEvents: 'none', fontWeight: 'bold', textShadow: '2px 2px 4px #000, 0 0 10px #FFD700', fontFamily: "'VT323', monospace" }}>

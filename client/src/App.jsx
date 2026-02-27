@@ -68,7 +68,7 @@ export default function Game() {
   const [topRecords, setTopRecords] = useState({ single: 'Đang tải...', pvp: 'Đang tải...' });
   const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(false);
   const [levelUpEffect, setLevelUpEffect] = useState(false);
-  const [frameCount, setFrameCount] = useState(0);
+  // const [frameCount, setFrameCount] = useState(0);
   const [uiUpdates, setUIUpdates] = useState({ score: 0, level: 1 });
   const [currentUser, setCurrentUser] = useState(null);
   const [isWatchingAd, setIsWatchingAd] = useState(false);
@@ -1061,7 +1061,7 @@ export default function Game() {
     drawCat();
     handleParticles();
     
-    setFrameCount(f => f + 1);
+    //setFrameCount(f => f + 1);
 
     if (gs.isGameOver && gs.gameMode === 'online') {
       if (!gs.remoteDead) {
@@ -1114,7 +1114,8 @@ export default function Game() {
     };
 
     const handleTouchOrMouse = (e) => {
-      if (e.target && e.target.closest && e.target.closest('button, .btn, .shop-item, .control-btn, input, .tab-btn')) {
+      // THÊM '.leaderboard-scroll' VÀO ĐÂY ĐỂ CHO PHÉP VUỐT CUỘN
+      if (e.target && e.target.closest && e.target.closest('button, .btn, .shop-item, .control-btn, input, .tab-btn, .leaderboard-scroll')) {
         return;
       }
       if (e.type === 'touchstart' && e.cancelable) {
@@ -1659,7 +1660,7 @@ useEffect(() => {
           levelUpEffect={levelUpEffect} 
           flipMute={flipMute} 
           togglePause={togglePause} 
-          frameCount={frameCount}
+          //frameCount={frameCount}
         />
       )}
       {/* --- GIAO DIỆN QUẢNG CÁO WEB (VIDEO MẪU) --- */}
