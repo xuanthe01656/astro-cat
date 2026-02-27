@@ -139,14 +139,12 @@ io.on('connection', (socket) => {
         const timeSinceLastUpdate = now - player.lastScoreUpdate;
         const scoreDifference = data.score - player.score;
 
-        // Giả sử mỗi ống cách nhau ít nhất 1.2 giây (1200ms)
-        // Nếu điểm tăng lớn hơn 1 hoặc tăng quá nhanh -> Chặn điểm
-        if (scoreDifference > 1 || timeSinceLastUpdate < 1000) {
+        // Cho phép nhảy tối đa 6 điểm 1 lúc (1 ống nước + 1 ngôi sao)
+        // Cho phép nhận điểm liên tục với khoảng cách tối thiểu 300ms (tốc độ bay max)
+        if (scoreDifference > 6 || timeSinceLastUpdate < 300) {
           console.log(`⚠️ Nghi vấn Hack điểm: User ${socket.id} - Bỏ qua update`);
-          // Không cập nhật điểm mới, ép dùng điểm cũ
           data.score = player.score; 
         } else {
-          // Hợp lệ thì cho phép cập nhật
           player.score = data.score;
           player.lastScoreUpdate = now;
         }

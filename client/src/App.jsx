@@ -402,10 +402,7 @@ export default function Game() {
       remoteName: gs.remoteName
     }));
     setScreen('gameover');
-
-    if (gs.isHost) {
-      submitScore('pvp', true);
-    }
+    submitScore('pvp', true);
   };
 
   const submitScore = async (mode = 'single', isAuto = false, customName = '') => {
