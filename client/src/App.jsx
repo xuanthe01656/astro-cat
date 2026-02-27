@@ -991,7 +991,11 @@ export default function Game() {
           createParticles(p.x, p.y, p.type === 'SHIELD' ? '#00FFFF' : '#FFD700', 10);
 
           if (p.type === 'SHIELD') { gs.cat.isInvincible = true; gs.cat.invincibleTimer = 300; } 
-          else if (p.type === 'STAR') { gs.score += 5; setUIUpdates(prev => ({ ...prev, score: gs.score })); } 
+          else if (p.type === 'STAR') { 
+            gs.score += 5; 
+            setUIUpdates(prev => ({ ...prev, score: gs.score })); 
+            if (gs.gameMode === 'online') sendData();
+         }
           else if (p.type === 'COIN') {
             gs.coins += 1; 
             setUIUpdates(prev => ({ ...prev, coins: gs.coins }));
