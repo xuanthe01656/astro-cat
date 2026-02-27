@@ -3,9 +3,10 @@ import { io } from 'socket.io-client';
 import toast, { Toaster } from 'react-hot-toast';
 import { db, auth, googleProvider } from './firebase';
 import { collection, addDoc, query, where, orderBy, limit, getDocs, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged,signInWithCredential, GoogleAuthProvider, } from 'firebase/auth';
 import { AdMob, RewardAdPluginEvents } from '@capacitor-community/admob';
 import { Capacitor } from '@capacitor/core';
+import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 
 
 // --- IMPORT CÁC HẰNG SỐ VÀ COMPONENT ĐÃ TÁCH ---
@@ -1317,37 +1318,36 @@ export default function Game() {
 
   const loginWithGoogle = async () => {
     try {
-      googleProvider.setCustomParameters({ prompt: 'select_account' });
-      
-      // Phân tách rạch ròi: App Native (APK) vs Web (Browser)
-      const isNative = Capacitor.isNativePlatform();
-
-      if (isNative) {
-        // Chỉ dùng Redirect khi cài file APK lên máy thật
-        await signInWithRedirect(auth, googleProvider);
+      if (Capacitor.isNativePlatform()) {
+        // Đăng nhập Native cho App APK
+        const googleUser = await GoogleAuth.signIn();
+        const credential = GoogleAuthProvider.credential(googleUser.authentication.idToken);
+        await signInWithCredential(auth, credential);
+        toast.success('Đăng nhập App thành công!');
       } else {
-        // DÙNG POPUP CHO TẤT CẢ WEB (Máy tính + Trình duyệt điện thoại)
+        // Đăng nhập Popup cho Web
         await signInWithPopup(auth, googleProvider);
-        toast.success('Đăng nhập thành công!');
-        // Lưu ý: Không cần gọi loadUserProfile ở đây vì onAuthStateChanged sẽ tự bắt được
+        toast.success('Đăng nhập Web thành công!');
       }
     } catch (error) {
-      console.error("Lỗi đăng nhập:", error);
-      if (error.code === 'auth/popup-blocked') {
-        toast.error('❌ Trình duyệt chặn Popup! Hãy ấn "Luôn cho phép" trên thanh địa chỉ.');
-      } else {
-        toast.error('Đăng nhập thất bại!');
-      }
+      console.error("Login Error:", error);
+      toast.error('Đăng nhập thất bại!');
     }
   };
- const logout = async () => {
+  const logout = async () => {
     try {
       if (currentUser) {
         const userRef = doc(db, "users", currentUser.uid);
         await updateDoc(userRef, { isOnline: false, last_session_id: "" });
       }
       localStorage.removeItem('astro_session_id'); // QUAN TRỌNG: Xóa ID ở máy này
-      await signOut(auth);
+      await signOut(auth); // Đăng xuất Firebase
+      
+      // THÊM DÒNG NÀY: Xóa bộ nhớ đệm của Google Auth trên App
+      if (Capacitor.isNativePlatform()) {
+        await GoogleAuth.signOut();
+      }
+
       setCurrentUser(null);
       setScreen('menu');
       toast.success('Đã thoát!');
@@ -1432,11 +1432,6 @@ export default function Game() {
 useEffect(() => {
     let isMounted = true;
 
-    // Hứng kết quả Redirect (Chỉ phục vụ cho App APK)
-    if (Capacitor.isNativePlatform()) {
-      getRedirectResult(auth).catch(err => console.error("Lỗi Redirect APK:", err));
-    }
-
     // Lắng nghe đăng nhập (Xử lý chung cho cả Web và APK)
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!isMounted) return;
@@ -1460,37 +1455,7 @@ useEffect(() => {
       unsubscribe();
     };
   }, []);
-  // const watchAd = (rewardType) => {
-  //   if (!currentUser) {
-  //     toast.error("Vui lòng đăng nhập để nhận thưởng!");
-  //     return;
-  //   }
-  //   if (rewardType === 'life' && gsRef.current.lives >= 5) {
-  //     toast.error('Túi mạng đã đầy 5/5. Bạn không cần xem thêm!');
-  //     return; 
-  //   }
-  //   if (isWatchingAd) return;
-
-  //   setIsWatchingAd(true);
-  //   const adToast = toast.loading('📺 Đang phát quảng cáo... (Vui lòng đợi 3s)', { duration: 4000 });
-
-  //   setTimeout(() => {
-  //     toast.dismiss(adToast);
-  //     setIsWatchingAd(false);
-
-  //     if (rewardType === 'coin') {
-  //       gsRef.current.coins += 50; 
-  //       setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins }));
-  //       toast.success('🎁 Phần thưởng: +50 XU!');
-  //     } else if (rewardType === 'life') {
-  //       gsRef.current.lives += 1;  
-  //       setUIUpdates(prev => ({ ...prev, lives: gsRef.current.lives }));
-  //       toast.success('❤️ Phần thưởng: +1 MẠNG!');
-  //     }
-      
-  //     saveUserProfile(); 
-  //   }, 3000);
-  // };
+  
   // ==========================================
   // HỆ THỐNG QUẢNG CÁO TẶNG THƯỞNG (ADMOB)
   // ==========================================
@@ -1613,19 +1578,17 @@ useEffect(() => {
   // ==========================================
   // BỘ ĐẾM NGƯỢC THỜI GIAN HỒI MẠNG (CHẠY NGẦM)
   // ==========================================
+  // BỘ ĐẾM NGƯỢC THỜI GIAN HỒI MẠNG (CHẠY NGẦM)
   useEffect(() => {
     const REGEN_TIME = 4 * 60 * 60 * 1000; // 4 tiếng
     
     const timer = setInterval(() => {
       const gs = gsRef.current;
-      
-      // Nếu mạng đầy thì xóa đếm ngược
       if (gs.lives >= 5) {
         setUIUpdates(prev => prev.nextLifeTime ? { ...prev, nextLifeTime: null } : prev);
         return;
       }
 
-      // Xác định thời điểm mất mạng lần cuối
       let lastLost = currentUser ? gs.livesUpdatedAt : parseInt(localStorage.getItem('astro_guest_last_lost'));
       if (!lastLost || isNaN(lastLost)) {
          lastLost = Date.now();
@@ -1637,33 +1600,30 @@ useEffect(() => {
       const timePassed = now - lastLost;
 
       if (timePassed >= REGEN_TIME) {
-         // Đã đủ 4 tiếng -> Tự động cộng 1 mạng
-         const livesToRecover = Math.floor(timePassed / REGEN_TIME);
-         gs.lives = Math.min(5, gs.lives + livesToRecover);
+         // Chỉ cộng 1 mạng, sau đó ĐẶT LẠI mốc thời gian lastLost về hiện tại
+         gs.lives = Math.min(5, gs.lives + 1);
+         const newLastLost = now; // Cập nhật mốc mới ngay lập tức
          
          if (gs.lives === 5) {
            if (!currentUser) localStorage.removeItem('astro_guest_last_lost');
-           else gs.livesUpdatedAt = now;
+           else gs.livesUpdatedAt = newLastLost;
            setUIUpdates(prev => ({ ...prev, lives: gs.lives, nextLifeTime: null }));
          } else {
-           const newLastLost = lastLost + livesToRecover * REGEN_TIME;
            if (!currentUser) localStorage.setItem('astro_guest_last_lost', newLastLost);
            else gs.livesUpdatedAt = newLastLost;
            setUIUpdates(prev => ({ ...prev, lives: gs.lives }));
          }
          if(currentUser) saveUserProfile();
       } else {
-         // Chưa đủ 4 tiếng -> Tính giờ hiển thị đếm ngược (HH:MM:SS)
          const remainingMs = REGEN_TIME - timePassed;
          const h = Math.floor(remainingMs / (1000 * 60 * 60));
          const m = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
          const s = Math.floor((remainingMs % (1000 * 60)) / 1000);
          const formattedTime = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
          
-         // Chỉ update UI nếu text thời gian thực sự thay đổi (giảm chi phí render)
          setUIUpdates(prev => prev.nextLifeTime !== formattedTime ? { ...prev, nextLifeTime: formattedTime } : prev);
       }
-    }, 1000); // Lặp lại mỗi 1 giây
+    }, 1000);
 
     return () => clearInterval(timer);
   }, [currentUser, uiUpdates.lives]);
