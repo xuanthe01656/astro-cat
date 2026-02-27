@@ -13,7 +13,7 @@ const THEME = {
   goldGlow: '0 0 15px rgba(255, 215, 0, 0.5)',  
 };
 
-export default function Leaderboard({ leaderboardMode, isLoadingLeaderboard, leaderboardData, openLeaderboard, setScreen, currentUser }) {
+export default function Leaderboard({ leaderboardMode, isLoadingLeaderboard, leaderboardData, openLeaderboard, setScreen, currentUser, userRankData }) {
   
   // --- HÀM HỖ TRỢ: BIỂU TƯỢNG XẾP HẠNG ---
   const renderRankIcon = (index) => {
@@ -26,45 +26,66 @@ export default function Leaderboard({ leaderboardMode, isLoadingLeaderboard, lea
   const renderWarriorName = (rawName) => {
     if (leaderboardMode === 'single') {
       return (
-        <span style={{ fontSize: '22px', fontWeight: 'bold', color: '#ffffff', maxWidth: '180px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block' }}>
+        <span style={{ fontSize: '22px', fontWeight: 'bold', color: '#ffffff', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block' }}>
           {rawName}
         </span>
       );
     }
 
-    // Biểu tượng phân cách 
     const separator = '⚔️';
 
-    // Nếu dữ liệu không có biểu tượng ⚔️ (dữ liệu cũ), in ra chữ màu trắng sáng
+    // Nếu dữ liệu cũ không có ⚔️
     if (!rawName.includes(separator)) {
       return <span style={{ fontSize: '20px', color: '#ffffff' }}>{rawName}</span>;
     }
 
-    // Tách thành 2 phần: TênMình(ĐiểmMình) và TênĐốiThủ(ĐiểmĐốiThủ)
     const parts = rawName.split(separator);
 
+    // Thuật toán tách Tên và (Điểm) ra để rớt dòng
+    const parsePlayer = (str) => {
+      const s = str.trim();
+      const lastOpen = s.lastIndexOf('(');
+      const lastClose = s.lastIndexOf(')');
+      if (lastOpen !== -1 && lastClose !== -1 && lastClose > lastOpen) {
+        return {
+          name: s.substring(0, lastOpen).trim(),
+          score: s.substring(lastOpen + 1, lastClose).trim()
+        };
+      }
+      return { name: s, score: '' };
+    };
+
+    const p1 = parsePlayer(parts[0]);
+    const p2 = parsePlayer(parts[1]);
+
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%', fontSize: '18px' }}>
-        {/* Người bên trái (Màu Cyan sáng rực) */}
-        <span style={{ 
-          flex: 1, textAlign: 'right', color: '#0abde3', fontWeight: 'bold', 
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px' 
-        }}>
-          {parts[0].trim()}
-        </span>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', fontSize: '18px' }}>
         
-        {/* Biểu tượng ⚔️ */}
-        <span style={{ fontSize: '18px', textShadow: '0 0 8px rgba(255,255,255,0.4)', color: '#fff' }}>
+        {/* NGƯỜI CHƠI 1 (BÊN TRÁI) */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: 0 }}>
+          {/* Dòng 1: Tên (Dài quá tự cắt ...) */}
+          <span style={{ color: '#0abde3', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', textAlign: 'right' }}>
+            {p1.name}
+          </span>
+          {/* Dòng 2: Điểm */}
+          {p1.score && <span style={{ fontSize: '15px', color: '#FFD700', marginTop: '-2px' }}>({p1.score})</span>}
+        </div>
+        
+        {/* BIỂU TƯỢNG ⚔️ Ở GIỮA */}
+        <span style={{ fontSize: '20px', textShadow: '0 0 8px rgba(255,255,255,0.4)', color: '#fff', flexShrink: 0, paddingBottom: p1.score ? '15px' : '0' }}>
           {separator}
         </span>
         
-        {/* Người bên phải (Đổi từ xám đen sang Trắng Tinh để dễ đọc) */}
-        <span style={{ 
-          flex: 1, textAlign: 'left', color: '#ffffff', fontWeight: 'normal',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px' 
-        }}>
-          {parts[1].trim()}
-        </span>
+        {/* NGƯỜI CHƠI 2 (BÊN PHẢI) */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
+           {/* Dòng 1: Tên */}
+          <span style={{ color: '#ffffff', fontWeight: 'normal', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', textAlign: 'left' }}>
+            {p2.name}
+          </span>
+          {/* Dòng 2: Điểm */}
+          {p2.score && <span style={{ fontSize: '15px', color: '#aaa', marginTop: '-2px' }}>({p2.score})</span>}
+        </div>
+
       </div>
     );
   };
@@ -78,8 +99,8 @@ export default function Leaderboard({ leaderboardMode, isLoadingLeaderboard, lea
       fontFamily: THEME.fontPixel,
     }}>
       <div style={{
-        width: '95%', maxWidth: '450px', 
-        height: 'auto', maxHeight: '85vh', /* Chiều cao tự động, tối đa 85% màn hình */
+        width: '95%', maxWidth: '520px', /* NỚI RỘNG TỪ 450px LÊN 520px */
+        height: 'auto', maxHeight: '85vh',
         backgroundColor: '#000814', borderRadius: '15px',
         border: `3px solid ${THEME.borderCyan}`, boxShadow: THEME.cyanGlow,
         display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative',
@@ -133,7 +154,7 @@ export default function Leaderboard({ leaderboardMode, isLoadingLeaderboard, lea
           ) : (
             leaderboardData.map((item, index) => {
               // Highlight thẻ nếu tên trong thẻ trùng với tên người dùng hiện tại
-              const isMe = currentUser && item.name.includes(currentUser.displayName);
+              const isMe = currentUser && (item.id === `${currentUser.uid}_${leaderboardMode}` || item.name.includes(currentUser.displayName));
               
               return (
                 <div key={index} className="leaderboard-card" style={{
@@ -162,6 +183,39 @@ export default function Leaderboard({ leaderboardMode, isLoadingLeaderboard, lea
               );
             })
           )}
+          {/* --- HIỂN THỊ KỶ LỤC CÁ NHÂN (NẾU NGOÀI TOP 10) --- */}
+              {userRankData && (
+                <>
+                  <div style={{ textAlign: 'center', color: THEME.textSub, margin: '5px 0 15px 0', fontSize: '24px', fontWeight: 'bold' }}>
+                    ⋮
+                  </div>
+                  <div className="leaderboard-card" style={{
+                    display: 'flex', alignItems: 'center',
+                    backgroundColor: '#1a202c', /* Nền hơi xanh sáng hơn để nhấn mạnh đây là của bạn */
+                    borderRadius: '10px',
+                    padding: '15px', marginBottom: '12px',
+                    border: `2px solid ${leaderboardMode === 'pvp' ? THEME.borderCyan : THEME.borderGold}`,
+                    boxShadow: leaderboardMode === 'pvp' ? '0 0 15px rgba(10,189,227,0.4)' : '0 0 15px rgba(255,215,0,0.4)',
+                  }}>
+                    {/* Hạng của bạn */}
+                    <div style={{ width: '45px', textAlign: 'center', marginRight: '10px' }}>
+                      <span style={{ fontSize: '22px', color: THEME.textMain, fontFamily: THEME.fontPixel, fontWeight: 'bold' }}>
+                        #{userRankData.rank}
+                      </span>
+                    </div>
+
+                    <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                      {renderWarriorName(userRankData.name)}
+                    </div>
+
+                    <div style={{ width: '80px', textAlign: 'right', marginLeft: '10px' }}>
+                      <span style={{ fontSize: '26px', color: THEME.borderGold, fontWeight: 'bold', textShadow: '1px 1px 0 #000' }}>
+                        {userRankData.score}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
         </div>
       </div>
 

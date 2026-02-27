@@ -71,6 +71,7 @@ export default function Game() {
   // const [frameCount, setFrameCount] = useState(0);
   const [uiUpdates, setUIUpdates] = useState({ score: 0, level: 1 });
   const [currentUser, setCurrentUser] = useState(null);
+  const [userRankData, setUserRankData] = useState(null);
   const [isWatchingAd, setIsWatchingAd] = useState(false);
   const [webAd, setWebAd] = useState({ isPlaying: false, type: null });
 
@@ -468,6 +469,7 @@ export default function Game() {
     setLeaderboardMode(mode);
     setIsLoadingLeaderboard(true);
     setLeaderboardData([]);
+    setUserRankData(null); // Reset dữ liệu cá nhân khi chuyển tab
     setScreen('leaderboard');
 
     try {
@@ -481,10 +483,37 @@ export default function Game() {
       const querySnapshot = await getDocs(q);
       const data = [];
       querySnapshot.forEach((doc) => {
-        data.push(doc.data());
+        data.push({ ...doc.data(), id: doc.id }); // Lưu kèm ID để nhận diện
       });
       
       setLeaderboardData(data);
+
+      // --- TÍNH HẠNG CỦA CÁ NHÂN (NẾU ĐÃ ĐĂNG NHẬP) ---
+      if (currentUser) {
+        const userDocId = `${currentUser.uid}_${mode}`;
+        const userDocRef = doc(db, "leaderboard", userDocId);
+        const userDocSnap = await getDoc(userDocRef);
+        
+        if (userDocSnap.exists()) {
+          const uData = userDocSnap.data();
+          
+          // Kiểm tra xem mình có đang nằm trong Top 10 không
+          const isInTop10 = data.some(item => item.id === userDocId);
+          
+          if (!isInTop10) {
+            // Đếm số người có điểm cao hơn để suy ra Hạng (Rank = Số người giỏi hơn + 1)
+            const higherQ = query(
+              collection(db, "leaderboard"),
+              where("mode", "==", mode),
+              where("score", ">", uData.score)
+            );
+            const higherSnap = await getDocs(higherQ);
+            const rank = higherSnap.docs.length + 1;
+
+            setUserRankData({ ...uData, rank: rank });
+          }
+        }
+      }
     } catch (err) {
       console.error("Firebase Query Error:", err);
       setLeaderboardData([]);
@@ -1639,6 +1668,7 @@ useEffect(() => {
           leaderboardData={leaderboardData} 
           openLeaderboard={openLeaderboard} 
           setScreen={setScreen} 
+          userRankData={userRankData}
         />
       )}
 
