@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function GameHUD({ gsRef, uiUpdates, levelUpEffect, flipMute, togglePause }) {
+export default function GameHUD({ gsRef, uiUpdates, levelUpEffect, flipMute, togglePause, countdown }) {
   return (
     <>
       {/* <div style={{ display: 'none' }}>{frameCount}</div> */}
@@ -34,7 +34,16 @@ export default function GameHUD({ gsRef, uiUpdates, levelUpEffect, flipMute, tog
             {uiUpdates.isPaused ? '▶️' : '⏸️'}
         </div>
       )}
-      
+      {countdown && (
+        <div key={countdown} style={{
+          position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+          fontSize: '150px', color: '#FFD700', textShadow: '4px 4px 0 #ff4757',
+          fontWeight: 'bold', zIndex: 2000, fontFamily: "'VT323', monospace",
+          animation: 'popIn 0.5s ease-out' /* Biến key={countdown} giúp animation chạy lại mỗi giây */
+        }}>
+          {countdown}
+        </div>
+      )}
       {levelUpEffect && <div id="levelUpMsg">LEVEL UP!</div>}
     </>
   );

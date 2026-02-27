@@ -33,15 +33,13 @@ export default function Leaderboard({ leaderboardMode, isLoadingLeaderboard, lea
     }
 
     const separator = '⚔️';
-
-    // Nếu dữ liệu cũ không có ⚔️
     if (!rawName.includes(separator)) {
       return <span style={{ fontSize: '20px', color: '#ffffff' }}>{rawName}</span>;
     }
 
     const parts = rawName.split(separator);
 
-    // Thuật toán tách Tên và (Điểm) ra để rớt dòng
+    // Thuật toán tách Tên và (Điểm) ra để xử lý rớt dòng độc lập
     const parsePlayer = (str) => {
       const s = str.trim();
       const lastOpen = s.lastIndexOf('(');
@@ -59,31 +57,28 @@ export default function Leaderboard({ leaderboardMode, isLoadingLeaderboard, lea
     const p2 = parsePlayer(parts[1]);
 
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', fontSize: '18px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', width: '100%', fontSize: '18px' }}>
         
         {/* NGƯỜI CHƠI 1 (BÊN TRÁI) */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: 0 }}>
-          {/* Dòng 1: Tên (Dài quá tự cắt ...) */}
-          <span style={{ color: '#0abde3', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', textAlign: 'right' }}>
+          {/* Thay nowrap bằng break-word để tự động ngắt dòng nếu tên quá dài */}
+          <span style={{ color: '#0abde3', fontWeight: 'bold', wordWrap: 'break-word', wordBreak: 'break-word', width: '100%', textAlign: 'right', lineHeight: '1.2' }}>
             {p1.name}
           </span>
-          {/* Dòng 2: Điểm */}
-          {p1.score && <span style={{ fontSize: '15px', color: '#FFD700', marginTop: '-2px' }}>({p1.score})</span>}
+          {p1.score && <span style={{ fontSize: '14px', color: '#FFD700', marginTop: '3px' }}>({p1.score})</span>}
         </div>
         
         {/* BIỂU TƯỢNG ⚔️ Ở GIỮA */}
-        <span style={{ fontSize: '20px', textShadow: '0 0 8px rgba(255,255,255,0.4)', color: '#fff', flexShrink: 0, paddingBottom: p1.score ? '15px' : '0' }}>
+        <span style={{ fontSize: '16px', textShadow: '0 0 8px rgba(255,255,255,0.4)', color: '#fff', flexShrink: 0, padding: '0 4px' }}>
           {separator}
         </span>
         
         {/* NGƯỜI CHƠI 2 (BÊN PHẢI) */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
-           {/* Dòng 1: Tên */}
-          <span style={{ color: '#ffffff', fontWeight: 'normal', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', textAlign: 'left' }}>
+          <span style={{ color: '#ffffff', fontWeight: 'normal', wordWrap: 'break-word', wordBreak: 'break-word', width: '100%', textAlign: 'left', lineHeight: '1.2' }}>
             {p2.name}
           </span>
-          {/* Dòng 2: Điểm */}
-          {p2.score && <span style={{ fontSize: '15px', color: '#aaa', marginTop: '-2px' }}>({p2.score})</span>}
+          {p2.score && <span style={{ fontSize: '14px', color: '#aaa', marginTop: '3px' }}>({p2.score})</span>}
         </div>
 
       </div>

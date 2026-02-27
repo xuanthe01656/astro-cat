@@ -68,6 +68,8 @@ export default function Game() {
   const [topRecords, setTopRecords] = useState({ single: 'Đang tải...', pvp: 'Đang tải...' });
   const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(false);
   const [levelUpEffect, setLevelUpEffect] = useState(false);
+  const [countdown, setCountdown] = useState(null);
+  const countdownTimerRef = useRef(null);
   // const [frameCount, setFrameCount] = useState(0);
   const [uiUpdates, setUIUpdates] = useState({ score: 0, level: 1 });
   const [currentUser, setCurrentUser] = useState(null);
@@ -138,7 +140,13 @@ export default function Game() {
       }
     });
   }, []);
-
+// Xóa đếm ngược nếu người dùng thoát ra ngoài lúc đang đếm
+  useEffect(() => {
+    if (screen !== 'game' && countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      setCountdown(null);
+    }
+  }, [screen]);
   // Get user IP
   useEffect(() => {
     fetch('https://api.ipify.org?format=json')
@@ -402,44 +410,70 @@ export default function Game() {
       remoteName: gs.remoteName
     }));
     setScreen('gameover');
-    submitScore('pvp', true);
+    submitScore('pvp', false);
   };
 
   const submitScore = async (mode = 'single', isAuto = false, customName = '') => {
     const gs = gsRef.current;
-    if (!currentUser) return false;
+    
+    // Lấy thẳng User từ Firebase (luôn mới nhất), bỏ qua React State
+    const user = auth.currentUser; 
+    
+    if (!user) {
+      console.log("❌ Hủy lưu: Không tìm thấy tài khoản!");
+      return false;
+    }
 
     let name = '';
     let scoreToSend = gs.score;
 
     if (mode === 'single') {
-      name = customName || localStorage.getItem('astro_custom_name') || currentUser.displayName;
+      name = customName || localStorage.getItem('astro_custom_name') || user.displayName;
       localStorage.setItem('astro_custom_name', name);
       gsRef.current.myName = name;
       scoreToSend = gs.score;
     } else {
-      // --- CODE LƯU ĐIỂM PVP MỚI ---
-      scoreToSend = gs.score;
-      // Định dạng chính xác như ảnh: "Tên Mình (Điểm Mình) ⚔️ Tên Địch (Điểm Địch)"
-      name = `${gs.myName} (${gs.score}) ⚔️ ${gs.remoteName} (${gs.remoteScore})`;
+      // --- FORMAT PVP STRING ĐỂ TỔNG HỢP 1 RANK DUY NHẤT ---
+      scoreToSend = gs.score; // Vẫn lưu điểm của chính mình để tính rank cá nhân
+      
+      const p1Name = gs.myName || 'Player';
+      const p1Score = gs.score;
+      const p2Name = gs.remoteName || 'Opponent';
+      const p2Score = gs.remoteScore;
+      
+      // Thuật toán: Ai điểm cao hơn thì đứng trước. 
+      // Đảm bảo 2 máy lưu CÙNG 1 CHUỖI giống hệt nhau để lọc trùng!
+      if (p1Score > p2Score) {
+        name = `${p1Name} (${p1Score}) ⚔️ ${p2Name} (${p2Score})`;
+      } else if (p2Score > p1Score) {
+        name = `${p2Name} (${p2Score}) ⚔️ ${p1Name} (${p1Score})`;
+      } else {
+        // Nếu hòa nhau, xếp theo thứ tự bảng chữ cái ABC để không bị lệch chuỗi
+        if (p1Name.localeCompare(p2Name) <= 0) {
+          name = `${p1Name} (${p1Score}) ⚔️ ${p2Name} (${p2Score})`;
+        } else {
+          name = `${p2Name} (${p2Score}) ⚔️ ${p1Name} (${p1Score})`;
+        }
+      }
     }
 
     if (!isAuto) toast.loading('💾 Đang kiểm tra và lưu kỷ lục...', { id: 'saveScore' });
 
     try {
-      const docId = `${currentUser.uid}_${mode}`;
+      const docId = `${user.uid}_${mode}`;
       const scoreRef = doc(db, "leaderboard", docId);
       const snap = await getDoc(scoreRef);
       
       if (snap.exists() && snap.data().score >= scoreToSend) {
         if (!isAuto) {
           toast.dismiss('saveScore');
-          toast.error('❌ Điểm chưa vượt qua Kỷ lục cũ của bạn!');
+          toast.error(`❌ Điểm ván này (${scoreToSend}) chưa vượt qua Kỷ lục cũ (${snap.data().score}) của bạn!`);
         }
         return false; 
       }
 
       await setDoc(scoreRef, {
+        uid: user.uid,
         name: name,
         score: scoreToSend,
         mode: mode,
@@ -450,12 +484,12 @@ export default function Game() {
         toast.dismiss('saveScore');
         toast.success('✅ Đã cập nhật kỷ lục mới!');
         setTimeout(() => openLeaderboard(mode), 1000);
-        return true; // Báo hiệu lưu thành công
       }
+      return true;
     } catch (err) {
       if (!isAuto) {
         toast.dismiss('saveScore');
-        toast.error('❌ Lỗi lưu điểm! Vui lòng thử lại.');
+        toast.error('❌ Lỗi Firebase: ' + err.message);
       }
       console.error("Firebase Error:", err);
       return false;
@@ -466,22 +500,37 @@ export default function Game() {
     setLeaderboardMode(mode);
     setIsLoadingLeaderboard(true);
     setLeaderboardData([]);
-    setUserRankData(null); // Reset dữ liệu cá nhân khi chuyển tab
+    setUserRankData(null); 
     setScreen('leaderboard');
 
     try {
+      // Tăng limit lên 20 để có chỗ bù trừ khi chúng ta gộp các ván đấu trùng lặp
       const q = query(
         collection(db, "leaderboard"), 
         where("mode", "==", mode), 
         orderBy("score", "desc"), 
-        limit(10)
+        limit(mode === 'pvp' ? 20 : 10) 
       );
       
       const querySnapshot = await getDocs(q);
-      const data = [];
+      let data = [];
+      const seenNames = new Set(); // Bộ lọc trùng lặp
+
       querySnapshot.forEach((doc) => {
-        data.push({ ...doc.data(), id: doc.id }); // Lưu kèm ID để nhận diện
+        const docData = doc.data();
+        if (mode === 'pvp') {
+          // Lọc: Nếu ván đấu này (chuỗi name) chưa có trong danh sách thì mới thêm vào
+          if (!seenNames.has(docData.name)) {
+            seenNames.add(docData.name);
+            data.push({ ...docData, id: doc.id });
+          }
+        } else {
+          data.push({ ...docData, id: doc.id });
+        }
       });
+      
+      // Sau khi lọc xong, cắt lại cho đúng chuẩn Top 10
+      if (data.length > 10) data = data.slice(0, 10);
       
       setLeaderboardData(data);
 
@@ -493,12 +542,9 @@ export default function Game() {
         
         if (userDocSnap.exists()) {
           const uData = userDocSnap.data();
-          
-          // Kiểm tra xem mình có đang nằm trong Top 10 không
           const isInTop10 = data.some(item => item.id === userDocId);
           
           if (!isInTop10) {
-            // Đếm số người có điểm cao hơn để suy ra Hạng (Rank = Số người giỏi hơn + 1)
             const higherQ = query(
               collection(db, "leaderboard"),
               where("mode", "==", mode),
@@ -506,7 +552,6 @@ export default function Game() {
             );
             const higherSnap = await getDocs(higherQ);
             const rank = higherSnap.docs.length + 1;
-
             setUserRankData({ ...uData, rank: rank });
           }
         }
@@ -708,7 +753,7 @@ export default function Game() {
     }));
   };
 
-  const startGame = (mode) => {
+ const startGame = (mode) => {
     if (gsRef.current.lives <= 0) {
       toast.error('❌ Bạn đã hết mạng! Hãy chờ hồi phục hoặc Xem quảng cáo.');
       return;
@@ -717,14 +762,18 @@ export default function Game() {
       cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
     }
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+    }
+
     gsRef.current.gameMode = mode;
     gsRef.current.isPlaying = true;
     gsRef.current.isGameOver = false;
     gsRef.current.remoteScore = 0;
     gsRef.current.remoteDead = false;
+    gsRef.current.isPaused = true; // KHOÁ TRÒ CHƠI LẠI ĐỂ ĐẾM NGƯỢC
 
     setScreen('game');
-
     if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume();
 
     const canvas = canvasRef.current;
@@ -732,14 +781,39 @@ export default function Game() {
 
     gsRef.current.canvas = canvas;
     gsRef.current.ctx = canvas.getContext('2d');
-
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     gsRef.current.pipeDistance = canvas.width < 600 ? PIPE_DIST_MOBILE : PIPE_DIST_DESKTOP;
     gsRef.current.cat.radius = window.innerHeight < 500 ? 10 : 15;
+    
     initGame();
-    gsRef.current.lastFrameTime = 0; 
-    loop();
+
+    // Vẽ khung hình đầu tiên để người chơi thấy rõ vị trí con mèo
+    gsRef.current.ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawBackground();
+    drawCat();
+
+    // --- LOGIC ĐẾM NGƯỢC ---
+    setCountdown(3);
+    Sound.jump(); // Âm báo "Bíp"
+
+    let count = 3;
+    countdownTimerRef.current = setInterval(() => {
+      count -= 1;
+      if (count > 0) {
+        setCountdown(count);
+        Sound.jump(); // Bíp
+      } else if (count === 0) {
+        setCountdown('GO!');
+        Sound.levelUp(); // Bíp dài
+      } else {
+        clearInterval(countdownTimerRef.current);
+        setCountdown(null);
+        gsRef.current.isPaused = false; // MỞ KHÓA TRÒ CHƠI
+        gsRef.current.lastFrameTime = 0;
+        loop(); // Bắt đầu vòng lặp đồ họa
+      }
+    }, 1000);
   };
 
   const updateCat = () => {
@@ -1687,6 +1761,7 @@ useEffect(() => {
           levelUpEffect={levelUpEffect} 
           flipMute={flipMute} 
           togglePause={togglePause} 
+          countdown={countdown}
           //frameCount={frameCount}
         />
       )}
