@@ -1681,8 +1681,15 @@ useEffect(() => {
             ✖ Đóng
           </button>
 
-          <p style={{ color: '#FFD700', marginBottom: '15px', fontSize: '24px', fontFamily: "'VT323', monospace" }}>
-            Đang phát video tài trợ... (Xem hết để nhận thưởng)
+          <p style={{ 
+            color: '#FFD700', 
+            marginBottom: '15px', 
+            fontSize: 'clamp(16px, 5vw, 24px)', /* Chữ tự co giãn từ 16px đến 24px tùy màn hình */
+            fontFamily: "'VT323', monospace",
+            textAlign: 'center', /* Ép chữ luôn nằm giữa dù bị rớt dòng */
+            padding: '0 15px'    /* Tránh chữ dính sát lề điện thoại */
+          }}>
+            Đang phát video tài trợ...<br/>(Xem hết để nhận thưởng)
           </p>
 
           {/* Trình phát Video Mẫu (10 giây) */}
