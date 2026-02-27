@@ -1113,7 +1113,7 @@ export default function Game() {
     };
 
     const handleTouchOrMouse = (e) => {
-      if (e.target && e.target.closest && e.target.closest('.btn, .shop-item, .control-btn, input, .tab-btn')) {
+      if (e.target && e.target.closest && e.target.closest('button, .btn, .shop-item, .control-btn, input, .tab-btn')) {
         return;
       }
       if (e.type === 'touchstart' && e.cancelable) {
