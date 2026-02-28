@@ -35,13 +35,42 @@ export default function GameHUD({ gsRef, uiUpdates, levelUpEffect, flipMute, tog
         </div>
       )}
       {countdown && (
-        <div key={countdown} style={{
-          position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-          fontSize: '150px', color: '#FFD700', textShadow: '4px 4px 0 #ff4757',
-          fontWeight: 'bold', zIndex: 2000, fontFamily: "'VT323', monospace",
-          animation: 'popIn 0.5s ease-out' /* Biến key={countdown} giúp animation chạy lại mỗi giây */
-        }}>
-          {countdown}
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 2000 }}>
+          
+          {/* 1. Số đếm ngược (Đẩy lên một chút để nhường chỗ cho ngón tay) */}
+          <div key={countdown} style={{
+            position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%, -50%)',
+            fontSize: '150px', color: '#FFD700', textShadow: '4px 4px 0 #ff4757',
+            fontWeight: 'bold', fontFamily: "'VT323', monospace",
+            animation: 'popIn 0.5s ease-out' 
+          }}>
+            {countdown}
+          </div>
+          
+          {/* 2. Hướng dẫn Tap to Jump sinh động */}
+          <div style={{
+            position: 'absolute', top: '65%', left: '50%', transform: 'translate(-50%, -50%)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center'
+          }}>
+            {/* Icon ngón tay */}
+            <div style={{ 
+              fontSize: '80px', 
+              animation: 'tapHand 0.8s ease-in-out infinite',
+              marginBottom: '10px'
+            }}>
+              👆
+            </div>
+            {/* Chữ */}
+            <div style={{ 
+              fontSize: '35px', color: '#fff', fontWeight: 'bold',
+              textShadow: '2px 2px 4px #000, 0 0 10px #0abde3', 
+              fontFamily: "'VT323', monospace", 
+              animation: 'pulseText 1s infinite' 
+            }}>
+              TAP TO JUMP
+            </div>
+          </div>
+
         </div>
       )}
       {levelUpEffect && <div id="levelUpMsg">LEVEL UP!</div>}
