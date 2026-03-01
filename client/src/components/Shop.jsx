@@ -4,7 +4,8 @@ import { SKINS, BACKGROUNDS } from '../constants';
 
 export default function Shop({ uiUpdates, setUIUpdates, gsRef, setScreen, selectSkin, selectBg, saveUserProfile, watchAd, isWatchingAd }) {
   return (
-    <div className="ui-layer" style={{ background: 'rgba(0,0,0,0.95)', overflowY: 'auto', justifyContent: 'flex-start', paddingTop: '40px', paddingBottom: '40px' }}>
+    <div className="ui-layer scrollable-layer" style={{ background: 'rgba(0,0,0,0.95)', overflowY: 'auto', justifyContent: 'flex-start', paddingTop: '40px', paddingBottom: '40px' }}>
+      <button className="btn-close" onClick={() => setScreen('menu')}>✕</button> 
       <div className="title" style={{ fontSize: '40px', marginTop: '20px' }}>KHO TRANG BỊ & SHOP</div>
       <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', justifyContent: 'center' }}>
         <div style={{ background: 'rgba(0,0,0,0.6)', padding: '5px 20px', borderRadius: '12px', color: '#FFD700', fontSize: '24px', border: '2px solid #FFD700', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 0 10px rgba(255,215,0,0.2)' }}>
@@ -112,7 +113,7 @@ export default function Shop({ uiUpdates, setUIUpdates, gsRef, setScreen, select
           </div>
         </div>
       </div>
-      <button className="btn btn-red" onClick={() => setScreen('menu')} style={{ width: '80%', maxWidth: '300px', marginTop: '10px' }}>ĐÓNG CỬA HÀNG</button>
+      {/* <button className="btn btn-red" onClick={() => setScreen('menu')} style={{ width: '80%', maxWidth: '300px', marginTop: '10px' }}>ĐÓNG CỬA HÀNG</button> */}
     </div>
   );
 }

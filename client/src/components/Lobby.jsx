@@ -7,6 +7,7 @@ export default function Lobby({ lobbyState, setLobbyState, currentUser, gsRef, c
 
   return (
     <div className="ui-layer">
+      <button className="btn-close" onClick={() => setScreen('menu')}>✕</button>
       <div className="title" style={{ fontSize: '50px', marginBottom: '20px' }}>PHÒNG SOLO</div>
       <div className="lobby-panel">
         {lobbyState === 'main' && (
@@ -43,7 +44,7 @@ export default function Lobby({ lobbyState, setLobbyState, currentUser, gsRef, c
           </div>
         )}
       </div>
-      <button className="btn btn-back" onClick={() => { setScreen('menu'); setLobbyState('main'); }} style={{ marginTop: '20px', background: 'transparent', border: '2px solid #ff4757', color: '#ff4757', fontSize: '24px', padding: '8px 20px' }}>⬅ QUAY LẠI MENU</button>
+      {/* <button className="btn btn-back" onClick={() => { setScreen('menu'); setLobbyState('main'); }} style={{ marginTop: '20px', background: 'transparent', border: '2px solid #ff4757', color: '#ff4757', fontSize: '24px', padding: '8px 20px' }}>⬅ QUAY LẠI MENU</button> */}
     </div>
   );
 }

@@ -303,3 +303,37 @@ td { padding: 8px; border-bottom: 1px solid #444; }
 /* Lớp phụ trợ nếu cần thu nhỏ/phóng to icon */
 .icon-sm { transform: scale(0.8); }
 .icon-lg { transform: scale(1.2); }
+/* Nút Đóng hình dấu X góc trên trái */
+.btn-close {
+    position: absolute;
+    top: calc(env(safe-area-inset-top) + 20px);
+    left: 20px;
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    background-color: #ff4757;
+    color: white;
+    border: 3px solid white;
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    pointer-events: auto;
+    box-shadow: 0 4px 10px rgba(255, 71, 87, 0.5);
+    transition: transform 0.2s, background-color 0.2s;
+    font-family: Arial, sans-serif; /* Dùng font chuẩn cho dấu X cho cân đối */
+}
+
+.btn-close:active {
+    transform: scale(0.9);
+    background-color: #ff6b81;
+}
+
+/* Fix cuộn mượt cho Shop và Leaderboard */
+.scrollable-layer {
+    pointer-events: auto !important; /* Bắt toàn bộ thao tác vuốt trên màn hình */
+    touch-action: pan-y !important;  /* Cho phép hệ thống xử lý thao tác vuốt dọc */
+}
