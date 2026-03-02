@@ -1,12 +1,8 @@
 # railway.toml
 
 [build]
-# Chỉ định builder là Node.js
-builder = "nodejs"
-
-# Lệnh build: cài đặt và build client, sau đó cài đặt server
+builder = "NIXPACKS"
 buildCommand = "cd client && npm install && npm run build && cd ../server && npm install"
 
 [deploy]
-# Lệnh khởi động server
 start = "npm start --prefix server"
