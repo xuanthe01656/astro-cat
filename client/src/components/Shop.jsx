@@ -114,9 +114,16 @@ export default function Shop({ uiUpdates, setUIUpdates, gsRef, setScreen, select
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '15px', width: '100%', maxWidth: '250px' }}>
               <div style={{ color: '#ff4757', fontSize: '28px', marginBottom: '5px' }}>TIỆN ÍCH</div>
               <div className="shop-item" onClick={() => {
+                  if (gsRef.current.lives >= 5) {
+                    toast.error("Mạng đã đầy (5/5)!");
+                    return;
+                  }
+                  
                   if (gsRef.current.coins >= 50) {
                     gsRef.current.coins -= 50; gsRef.current.lives += 1;
-                    setUIUpdates(prev => ({...prev, coins: gsRef.current.coins, lives: gsRef.current.lives})); saveUserProfile(); toast.success("Đã mua 1 Mạng!");
+                    setUIUpdates(prev => ({...prev, coins: gsRef.current.coins, lives: gsRef.current.lives})); 
+                    saveUserProfile(); 
+                    toast.success("Đã mua 1 Mạng!");
                   } else toast.error("Không đủ Xu!");
                 }} 
                 style={{ pointerEvents: 'auto', border: '2px solid #ff4757', background: '#333', width: '100%', height: '80px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', borderRadius: '8px', flexDirection: 'column' }}
