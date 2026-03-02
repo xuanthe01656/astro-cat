@@ -1,8 +1,6 @@
-# railway.toml
-
 [build]
 builder = "NIXPACKS"
 buildCommand = "cd client && npm install && npm run build && cd ../server && npm install"
 
 [deploy]
-start = "npm start --prefix server"
+start = "cd server && npm start"
