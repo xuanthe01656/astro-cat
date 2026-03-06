@@ -1413,7 +1413,12 @@ export default function Game() {
         // Tải dữ liệu
         gsRef.current.coins = data.coins || 0;
         gsRef.current.lives = data.lives !== undefined ? data.lives : 5;
-        gsRef.current.livesUpdatedAt = data.livesUpdatedAt || Date.now();
+
+        if (gsRef.current.lives < 5) {
+          gsRef.current.livesUpdatedAt = data.livesUpdatedAt || Date.now();
+        } else {
+          gsRef.current.livesUpdatedAt = null;
+        }
         gsRef.current.bestScore = data.highScore || 0;
         gsRef.current.inventory = data.inventory || { skins: ['classic'], bgs: ['deep'] };
         gsRef.current.userSettings = data.equipped || { skin: 'classic', bg: 'deep' };
@@ -1442,7 +1447,7 @@ export default function Game() {
       highScore: gsRef.current.bestScore,
       coins: gsRef.current.coins,
       lives: gsRef.current.lives,
-      livesUpdatedAt: gsRef.current.livesUpdatedAt || Date.now(),
+      livesUpdatedAt: gsRef.current.livesUpdatedAt,
       inventory: gsRef.current.inventory,
       equipped: gsRef.current.userSettings,
     });
