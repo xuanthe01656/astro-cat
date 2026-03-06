@@ -342,32 +342,42 @@ export default function Game() {
     if (gs.isGameOver) return;
     gs.isGameOver = true;
     Sound.hit();
-    if (gs.score > gs.bestScore) gs.bestScore = gs.score;
+
+    // 1. XỬ LÝ ĐIỂM SỐ (Gộp lại một chỗ cho gọn)
+    if (gs.score > gs.bestScore) {
+      gs.bestScore = gs.score;
+      if (!currentUser) {
+        localStorage.setItem('astroCatBestScore', gs.bestScore);
+      }
+    }
+
+    // 2. XỬ LÝ MẠNG VÀ THỜI GIAN HỒI MẠNG
     if (gs.lives > 0) {
-      gs.lives -= 1;
-      setUIUpdates(prev => ({ ...prev, lives: gs.lives }));
-      // Cập nhật mốc thời gian mất mạng để bắt đầu đếm ngược
-      if (gs.lives === 4) { 
+      // Nếu mạng đang đầy (5) mà bắt đầu mất mạng -> Ghi lại mốc thời gian bắt đầu hồi mạng
+      if (gs.lives === 5) {
         const now = Date.now();
         gs.livesUpdatedAt = now;
-        if (!currentUser) localStorage.setItem('astro_guest_last_lost', now);
+        if (!currentUser) {
+          localStorage.setItem('astro_guest_last_lost', now);
+        }
       }
+
+      gs.lives -= 1;
+      setUIUpdates(prev => ({ ...prev, lives: gs.lives }));
+
       if (!currentUser) {
         localStorage.setItem('astro_guest_lives', gs.lives);
       }
     }
 
+    // 3. LƯU DỮ LIỆU
     if (currentUser) {
-      saveUserProfile(); 
+      saveUserProfile(); // Hàm này sẽ lưu cả highScore, lives và livesUpdatedAt lên Firestore
     } else {
       localStorage.setItem('astro_guest_coins', gs.coins);
-      localStorage.setItem('astroCatBestScore', gs.bestScore);
-    }
-    if (gs.score > gs.bestScore) {
-      gs.bestScore = gs.score;
-      localStorage.setItem('astroCatBestScore', gs.bestScore);
     }
 
+    // 4. HIỆU ỨNG VÀ CHUYỂN SCREEN
     createParticles(gs.cat.x, gs.cat.y, 'orange', 20);
     createParticles(gs.cat.x, gs.cat.y, 'white', 10);
 
@@ -1584,52 +1594,73 @@ useEffect(() => {
     toast.error('❌ Bạn chưa xem hết quảng cáo nên không nhận được thưởng!');
   };
   // ==========================================
-  // BỘ ĐẾM NGƯỢC THỜI GIAN HỒI MẠNG (CHẠY NGẦM)
+  // BỘ ĐẾM NGƯỢC THỜI GIAN HỒI MẠNG (CHẠY NGẦM & OFFLINE)
   // ==========================================
-  // BỘ ĐẾM NGƯỢC THỜI GIAN HỒI MẠNG (CHẠY NGẦM)
   useEffect(() => {
-    const REGEN_TIME = 4 * 60 * 60 * 1000; // 4 tiếng
+    const REGEN_TIME = 3 * 60 * 60 * 1000; // Đã chỉnh về 3 tiếng
     
     const timer = setInterval(() => {
       const gs = gsRef.current;
+      
+      // Nếu mạng đã đầy thì không cần tính toán
       if (gs.lives >= 5) {
-        setUIUpdates(prev => prev.nextLifeTime ? { ...prev, nextLifeTime: null } : prev);
+        if (uiUpdates.nextLifeTime) {
+          setUIUpdates(prev => ({ ...prev, nextLifeTime: null }));
+        }
         return;
       }
 
+      // Lấy mốc thời gian mất mạng đầu tiên
       let lastLost = currentUser ? gs.livesUpdatedAt : parseInt(localStorage.getItem('astro_guest_last_lost'));
+      
       if (!lastLost || isNaN(lastLost)) {
-         lastLost = Date.now();
-         gs.livesUpdatedAt = lastLost;
-         if (!currentUser) localStorage.setItem('astro_guest_last_lost', lastLost);
+        lastLost = Date.now();
+        gs.livesUpdatedAt = lastLost;
+        if (!currentUser) localStorage.setItem('astro_guest_last_lost', lastLost);
+        return;
       }
 
       const now = Date.now();
       const timePassed = now - lastLost;
 
+      // KIỂM TRA HỒI MẠNG (Xử lý được cả trường hợp hồi nhiều mạng cùng lúc)
       if (timePassed >= REGEN_TIME) {
-         // Chỉ cộng 1 mạng, sau đó ĐẶT LẠI mốc thời gian lastLost về hiện tại
-         gs.lives = Math.min(5, gs.lives + 1);
-         const newLastLost = now; // Cập nhật mốc mới ngay lập tức
-         
-         if (gs.lives === 5) {
-           if (!currentUser) localStorage.removeItem('astro_guest_last_lost');
-           else gs.livesUpdatedAt = newLastLost;
-           setUIUpdates(prev => ({ ...prev, lives: gs.lives, nextLifeTime: null }));
-         } else {
-           if (!currentUser) localStorage.setItem('astro_guest_last_lost', newLastLost);
-           else gs.livesUpdatedAt = newLastLost;
-           setUIUpdates(prev => ({ ...prev, lives: gs.lives }));
-         }
-         if(currentUser) saveUserProfile();
+        const gained = Math.floor(timePassed / REGEN_TIME); // Tính số mạng được nhận
+        const newLives = Math.min(5, gs.lives + gained);
+        
+        // CẬP NHẬT MỐC THỜI GIAN MỚI: 
+        // Thay vì dùng Date.now(), ta cộng thêm các khoảng REGEN_TIME vào mốc cũ 
+        // để bảo toàn số phút/giây dư thừa cho mạng tiếp theo.
+        const newLastLost = lastLost + (gained * REGEN_TIME);
+        
+        gs.lives = newLives;
+        gs.livesUpdatedAt = newLives >= 5 ? null : newLastLost;
+
+        // Lưu trữ ngay lập tức để không bị mất khi reload/đóng app
+        if (currentUser) {
+          saveUserProfile(); // Lưu lên Firestore
+        } else {
+          localStorage.setItem('astro_guest_lives', gs.lives);
+          if (gs.lives >= 5) {
+            localStorage.removeItem('astro_guest_last_lost');
+          } else {
+            localStorage.setItem('astro_guest_last_lost', gs.livesUpdatedAt);
+          }
+        }
+
+        setUIUpdates(prev => ({ ...prev, lives: gs.lives }));
+        toast.success(`❤️ Đã hồi phục ${gained} mạng!`);
       } else {
-         const remainingMs = REGEN_TIME - timePassed;
-         const h = Math.floor(remainingMs / (1000 * 60 * 60));
-         const m = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
-         const s = Math.floor((remainingMs % (1000 * 60)) / 1000);
-         const formattedTime = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-         
-         setUIUpdates(prev => prev.nextLifeTime !== formattedTime ? { ...prev, nextLifeTime: formattedTime } : prev);
+        // CẬP NHẬT GIAO DIỆN ĐẾM NGƯỢC
+        const remainingMs = REGEN_TIME - timePassed;
+        const h = Math.floor(remainingMs / (1000 * 60 * 60));
+        const m = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((remainingMs % (1000 * 60)) / 1000);
+        const formattedTime = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        
+        if (uiUpdates.nextLifeTime !== formattedTime) {
+          setUIUpdates(prev => ({ ...prev, nextLifeTime: formattedTime }));
+        }
       }
     }, 1000);
 
