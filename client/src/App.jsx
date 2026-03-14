@@ -7,6 +7,7 @@ import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuth
 import { AdMob, RewardAdPluginEvents } from '@capacitor-community/admob';
 import { Capacitor } from '@capacitor/core';
 import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
+import { Device } from '@capacitor-community/device';
 
 
 // --- IMPORT CÁC HẰNG SỐ VÀ COMPONENT ĐÃ TÁCH ---
@@ -17,6 +18,7 @@ import Shop from './components/Shop';
 import Leaderboard from './components/Leaderboard';
 import GameOver from './components/GameOver';
 import GameHUD from './components/GameHUD';
+import { secureStorage } from './utils/storageHelper';
 
 const imageCache = {};
 const getImage = (src) => {
@@ -87,7 +89,7 @@ export default function Game() {
     bestScore: 0,
     gameSpeed: 3,
     coins: 0,
-    lives: 5,
+    lives: 10,
     inventory: {
       skins: ['classic'], 
       bgs: ['deep']       
@@ -130,7 +132,42 @@ export default function Game() {
     background: { stars: [] },
     pools: { particles: [], pipes: [], powerUps: [] }
   });
+// Thêm mới useEffect chuyên biệt cho bảo mật
+useEffect(() => {
+  const checkSecurity = async () => {
+    // Chỉ thực hiện kiểm tra sâu khi chạy trên môi trường APK (Android/iOS)
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const info = await Device.getInfo();
+        
+        // 1. Chặn trình giả lập (Emulator)
+        // Hacker thường dùng giả lập trên PC để dễ dàng chạy script hoặc tool can thiệp
+        if (info.isVirtual) {
+          toast.error("Phát hiện môi trường không an toàn (Giả lập)! Game sẽ tự đóng sau 3 giây.");
+          setTimeout(() => {
+             // Chuyển hướng hoặc thoát app
+             window.location.href = "about:blank";
+          }, 3000);
+          return;
+        }
 
+        // 2. Định danh thiết bị (Dùng để Ban máy nếu phát hiện hack điểm)
+        // Bạn có thể lưu ID này vào gsRef hoặc gửi lên Firebase cùng với Score
+        const idResult = await Device.getId();
+        gsRef.current.deviceId = idResult.uuid;
+        console.log("Device ID Verified:", idResult.uuid);
+
+      } catch (error) {
+        console.error("Security Check Error:", error);
+      }
+    } else {
+      // Nếu chạy trên Web, bạn có thể thêm logic chặn F12 hoặc Inspect tại đây nếu muốn
+      console.log("Running on Web - Basic security applied.");
+    }
+  };
+
+  checkSecurity();
+}, []);
   // Preload skins
   useEffect(() => {
     SKINS.forEach(skin => {
@@ -347,18 +384,18 @@ export default function Game() {
     if (gs.score > gs.bestScore) {
       gs.bestScore = gs.score;
       if (!currentUser) {
-        localStorage.setItem('astroCatBestScore', gs.bestScore);
+        secureStorage.setItem('astroCatBestScore', gs.bestScore);
       }
     }
 
     // 2. XỬ LÝ MẠNG VÀ THỜI GIAN HỒI MẠNG
     if (gs.lives > 0) {
       // Nếu mạng đang đầy (5) mà bắt đầu mất mạng -> Ghi lại mốc thời gian bắt đầu hồi mạng
-      if (gs.lives === 5) {
+      if (gs.lives === 10) {
         const now = Date.now();
         gs.livesUpdatedAt = now;
         if (!currentUser) {
-          localStorage.setItem('astro_guest_last_lost', now);
+          secureStorage.setItem('astro_guest_last_lost', now);
         }
       }
 
@@ -366,7 +403,7 @@ export default function Game() {
       setUIUpdates(prev => ({ ...prev, lives: gs.lives }));
 
       if (!currentUser) {
-        localStorage.setItem('astro_guest_lives', gs.lives);
+        secureStorage.setItem('astro_guest_lives', gs.lives);
       }
     }
 
@@ -374,7 +411,7 @@ export default function Game() {
     if (currentUser) {
       saveUserProfile(); // Hàm này sẽ lưu cả highScore, lives và livesUpdatedAt lên Firestore
     } else {
-      localStorage.setItem('astro_guest_coins', gs.coins);
+      secureStorage.setItem('astro_guest_coins', gs.coins);
     }
 
     // 4. HIỆU ỨNG VÀ CHUYỂN SCREEN
@@ -439,8 +476,8 @@ export default function Game() {
     let scoreToSend = gs.score;
 
     if (mode === 'single') {
-      name = customName || localStorage.getItem('astro_custom_name') || user.displayName;
-      localStorage.setItem('astro_custom_name', name);
+      name = customName || secureStorage.getItem('astro_custom_name') || user.displayName;
+      secureStorage.setItem('astro_custom_name', name);
       gsRef.current.myName = name;
       scoreToSend = gs.score;
     } else {
@@ -614,7 +651,7 @@ export default function Game() {
       return;
     }
     gsRef.current.myName = playerName;
-    localStorage.setItem('astro_custom_name', playerName);
+    secureStorage.setItem('astro_custom_name', playerName);
     gsRef.current.isHost = true;
     setLobbyState('wait');
     toast.success('✅ Phòng đã tạo thành công!');
@@ -636,7 +673,7 @@ export default function Game() {
     }
 
     gsRef.current.myName = playerName;
-    localStorage.setItem('astro_custom_name', playerName);
+    secureStorage.setItem('astro_custom_name', playerName);
     toast.loading('🔗 Đang kết nối...');
     socketRef.current.emit('join-room', {
       roomCode: roomCode,
@@ -649,7 +686,7 @@ export default function Game() {
   };
 
   const closeShop = () => {
-    localStorage.setItem('astroCatSettings', JSON.stringify(gsRef.current.userSettings));
+    secureStorage.setItem('astroCatSettings', JSON.stringify(gsRef.current.userSettings));
     setScreen('menu');
   };
 
@@ -1107,7 +1144,7 @@ export default function Game() {
           else if (p.type === 'COIN') {
             gs.coins += 1; 
             setUIUpdates(prev => ({ ...prev, coins: gs.coins }));
-            if (!auth.currentUser) localStorage.setItem('astro_guest_coins', gs.coins);
+            if (!auth.currentUser) secureStorage.setItem('astro_guest_coins', gs.coins);
           }
         }
       }
@@ -1358,7 +1395,7 @@ export default function Game() {
         const userRef = doc(db, "users", currentUser.uid);
         await updateDoc(userRef, { isOnline: false, last_session_id: "" });
       }
-      localStorage.removeItem('astro_session_id'); // QUAN TRỌNG: Xóa ID ở máy này
+      secureStorage.removeItem('astro_session_id'); // QUAN TRỌNG: Xóa ID ở máy này
       await signOut(auth); // Đăng xuất Firebase
       
       // THÊM DÒNG NÀY: Xóa bộ nhớ đệm của Google Auth trên App
@@ -1379,10 +1416,10 @@ export default function Game() {
     try {
       const snap = await getDoc(userRef);
       // Sử dụng Session ID cố định lưu trong máy
-      let savedId = localStorage.getItem('astro_session_id');
+      let savedId = secureStorage.getItem('astro_session_id');
       if (!savedId) {
         savedId = "sess_" + Math.random().toString(36).substring(2, 15);
-        localStorage.setItem('astro_session_id', savedId);
+        secureStorage.setItem('astro_session_id', savedId);
       }
       const currentSocketId = savedId;
 
@@ -1412,9 +1449,9 @@ export default function Game() {
 
         // Tải dữ liệu
         gsRef.current.coins = data.coins || 0;
-        gsRef.current.lives = data.lives !== undefined ? data.lives : 5;
+        gsRef.current.lives = data.lives !== undefined ? data.lives : 10;
 
-        if (gsRef.current.lives < 5) {
+        if (gsRef.current.lives < 10) {
           gsRef.current.livesUpdatedAt = data.livesUpdatedAt || Date.now();
         } else {
           gsRef.current.livesUpdatedAt = null;
@@ -1429,7 +1466,7 @@ export default function Game() {
           isOnline: true,
           last_session_id: currentSocketId,
           last_update_ms: Date.now(),
-          coins: 0, lives: 5, highScore: 0
+          coins: 0, lives: 10, highScore: 0
         });
       }
       setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins, lives: gsRef.current.lives }));
@@ -1465,8 +1502,8 @@ useEffect(() => {
         await loadUserProfile(user);
       } else {
         // Xử lý khách (Guest)
-        let guestLives = parseInt(localStorage.getItem('astro_guest_lives')) || 5;
-        let guestCoins = parseInt(localStorage.getItem('astro_guest_coins')) || 0;
+        let guestLives = parseInt(secureStorage.getItem('astro_guest_lives')) || 10;
+        let guestCoins = parseInt(secureStorage.getItem('astro_guest_coins')) || 0;
         gsRef.current.lives = guestLives;
         gsRef.current.coins = guestCoins;
         setUIUpdates(prev => ({ ...prev, lives: guestLives, coins: guestCoins }));
@@ -1535,8 +1572,8 @@ useEffect(() => {
       toast.error("Vui lòng đăng nhập để nhận thưởng!");
       return;
     }
-    if (rewardType === 'life' && gsRef.current.lives >= 5) {
-      toast.error('Túi mạng đã đầy 5/5. Bạn không cần xem thêm!');
+    if (rewardType === 'life' && gsRef.current.lives >= 10) {
+      toast.error('Túi mạng đã đầy 10/10. Bạn không cần xem thêm!');
       return; 
     }
     if (isWatchingAd) return;
@@ -1602,13 +1639,13 @@ useEffect(() => {
   // BỘ ĐẾM NGƯỢC THỜI GIAN HỒI MẠNG (CHẠY NGẦM & OFFLINE)
   // ==========================================
   useEffect(() => {
-    const REGEN_TIME = 3 * 60 * 60 * 1000; // Đã chỉnh về 3 tiếng
+    const REGEN_TIME = 2 * 60 * 60 * 1000; // Đã chỉnh về 3 tiếng
     
     const timer = setInterval(() => {
       const gs = gsRef.current;
       
       // Nếu mạng đã đầy thì không cần tính toán
-      if (gs.lives >= 5) {
+      if (gs.lives >= 10) {
         if (uiUpdates.nextLifeTime) {
           setUIUpdates(prev => ({ ...prev, nextLifeTime: null }));
         }
@@ -1616,12 +1653,12 @@ useEffect(() => {
       }
 
       // Lấy mốc thời gian mất mạng đầu tiên
-      let lastLost = currentUser ? gs.livesUpdatedAt : parseInt(localStorage.getItem('astro_guest_last_lost'));
+      let lastLost = currentUser ? gs.livesUpdatedAt : parseInt(secureStorage.getItem('astro_guest_last_lost'));
       
       if (!lastLost || isNaN(lastLost)) {
         lastLost = Date.now();
         gs.livesUpdatedAt = lastLost;
-        if (!currentUser) localStorage.setItem('astro_guest_last_lost', lastLost);
+        if (!currentUser) secureStorage.setItem('astro_guest_last_lost', lastLost);
         return;
       }
 
@@ -1631,7 +1668,7 @@ useEffect(() => {
       // KIỂM TRA HỒI MẠNG (Xử lý được cả trường hợp hồi nhiều mạng cùng lúc)
       if (timePassed >= REGEN_TIME) {
         const gained = Math.floor(timePassed / REGEN_TIME); // Tính số mạng được nhận
-        const newLives = Math.min(5, gs.lives + gained);
+        const newLives = Math.min(10, gs.lives + gained);
         
         // CẬP NHẬT MỐC THỜI GIAN MỚI: 
         // Thay vì dùng Date.now(), ta cộng thêm các khoảng REGEN_TIME vào mốc cũ 
@@ -1639,22 +1676,27 @@ useEffect(() => {
         const newLastLost = lastLost + (gained * REGEN_TIME);
         
         gs.lives = newLives;
-        gs.livesUpdatedAt = newLives >= 5 ? null : newLastLost;
+        gs.livesUpdatedAt = newLives >= 10 ? null : newLastLost;
 
         // Lưu trữ ngay lập tức để không bị mất khi reload/đóng app
         if (currentUser) {
           saveUserProfile(); // Lưu lên Firestore
         } else {
-          localStorage.setItem('astro_guest_lives', gs.lives);
-          if (gs.lives >= 5) {
-            localStorage.removeItem('astro_guest_last_lost');
+          secureStorage.setItem('astro_guest_lives', gs.lives);
+          if (gs.lives >= 10) {
+            secureStorage.removeItem('astro_guest_last_lost');
           } else {
-            localStorage.setItem('astro_guest_last_lost', gs.livesUpdatedAt);
+            secureStorage.setItem('astro_guest_last_lost', gs.livesUpdatedAt);
           }
         }
 
         setUIUpdates(prev => ({ ...prev, lives: gs.lives }));
-        toast.success(`❤️ Đã hồi phục ${gained} mạng!`);
+        if(gained >= 10){
+          toast.success(`❤️ Đã hồi phục toàn bộ mạng!`);
+        }else{
+          toast.success(`❤️ Đã hồi phục ${gained} mạng!`);
+        }
+        
       } else {
         // CẬP NHẬT GIAO DIỆN ĐẾM NGƯỢC
         const remainingMs = REGEN_TIME - timePassed;
