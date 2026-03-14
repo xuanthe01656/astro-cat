@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import toast, { Toaster } from 'react-hot-toast';
 import { db, auth, googleProvider } from './firebase';
-import { collection, addDoc, query, where, orderBy, limit, getDocs, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, orderBy, limit, getDocs, doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged,signInWithCredential, GoogleAuthProvider, } from 'firebase/auth';
 import { AdMob, RewardAdPluginEvents } from '@capacitor-community/admob';
 import { Capacitor } from '@capacitor/core';
 import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
-import { Device } from '@capacitor-community/device';
+import { Device } from '@capacitor/device';
 
 
 // --- IMPORT CÁC HẰNG SỐ VÀ COMPONENT ĐÃ TÁCH ---
@@ -132,37 +132,30 @@ export default function Game() {
     background: { stars: [] },
     pools: { particles: [], pipes: [], powerUps: [] }
   });
+  const getRealTime = () => Date.now() + (gsRef.current.timeOffset || 0);
 // Thêm mới useEffect chuyên biệt cho bảo mật
 useEffect(() => {
   const checkSecurity = async () => {
-    // Chỉ thực hiện kiểm tra sâu khi chạy trên môi trường APK (Android/iOS)
     if (Capacitor.isNativePlatform()) {
       try {
-        const info = await Device.getInfo();
+        // Sử dụng await trực tiếp từ đối tượng Device
+        const info = await Device.getInfo(); 
         
-        // 1. Chặn trình giả lập (Emulator)
-        // Hacker thường dùng giả lập trên PC để dễ dàng chạy script hoặc tool can thiệp
         if (info.isVirtual) {
-          toast.error("Phát hiện môi trường không an toàn (Giả lập)! Game sẽ tự đóng sau 3 giây.");
+          toast.error("Phát hiện môi trường không an toàn (Giả lập)!");
           setTimeout(() => {
-             // Chuyển hướng hoặc thoát app
              window.location.href = "about:blank";
           }, 3000);
           return;
         }
 
-        // 2. Định danh thiết bị (Dùng để Ban máy nếu phát hiện hack điểm)
-        // Bạn có thể lưu ID này vào gsRef hoặc gửi lên Firebase cùng với Score
         const idResult = await Device.getId();
-        gsRef.current.deviceId = idResult.uuid;
+        gsRef.current.deviceId = idResult.uuid; // Lưu ID thiết bị để định danh
         console.log("Device ID Verified:", idResult.uuid);
 
       } catch (error) {
         console.error("Security Check Error:", error);
       }
-    } else {
-      // Nếu chạy trên Web, bạn có thể thêm logic chặn F12 hoặc Inspect tại đây nếu muốn
-      console.log("Running on Web - Basic security applied.");
     }
   };
 
@@ -186,11 +179,28 @@ useEffect(() => {
     }
   }, [screen]);
   // Get user IP
+ // Get user IP và Đồng bộ thời gian Server
   useEffect(() => {
+    // 1. Lấy IP
     fetch('https://api.ipify.org?format=json')
       .then(r => r.json())
       .then(d => { gsRef.current.userIP = d.ip; })
       .catch(e => console.log("IP Error"));
+
+    // 2. Lấy giờ chuẩn từ Internet (Chống hack đổi giờ máy)
+    const syncTime = async () => {
+      try {
+        const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC');
+        const data = await res.json();
+        const realTimeMs = new Date(data.utc_datetime).getTime();
+        const localTimeMs = Date.now();
+        // Lưu lại khoảng chênh lệch
+        gsRef.current.timeOffset = realTimeMs - localTimeMs; 
+      } catch (error) {
+        console.log("Lỗi đồng bộ giờ, dùng giờ máy cục bộ.");
+      }
+    };
+    syncTime();
   }, []);
 
   // Socket.io setup
@@ -392,7 +402,7 @@ useEffect(() => {
     if (gs.lives > 0) {
       // Nếu mạng đang đầy (5) mà bắt đầu mất mạng -> Ghi lại mốc thời gian bắt đầu hồi mạng
       if (gs.lives === 10) {
-        const now = Date.now();
+        const now = getRealTime();
         gs.livesUpdatedAt = now;
         if (!currentUser) {
           secureStorage.setItem('astro_guest_last_lost', now);
@@ -525,7 +535,7 @@ useEffect(() => {
         name: name,
         score: scoreToSend,
         mode: mode,
-        timestamp: new Date()
+        timestamp: serverTimestamp()
       });
 
       if (!isAuto) {
@@ -1393,16 +1403,16 @@ useEffect(() => {
     try {
       if (currentUser) {
         const userRef = doc(db, "users", currentUser.uid);
-        await updateDoc(userRef, { isOnline: false, last_session_id: "" });
+        // Bỏ qua lỗi cập nhật mạng để luôn ưu tiên ép đăng xuất thành công ở Client
+        await updateDoc(userRef, { isOnline: false, last_session_id: "" }).catch(() => {});
       }
-      secureStorage.removeItem('astro_session_id'); // QUAN TRỌNG: Xóa ID ở máy này
-      await signOut(auth); // Đăng xuất Firebase
+      secureStorage.removeItem('astro_session_id');
+      await signOut(auth);
       
-      // THÊM DÒNG NÀY: Xóa bộ nhớ đệm của Google Auth trên App
       if (Capacitor.isNativePlatform()) {
         await GoogleAuth.signOut();
       }
-
+  
       setCurrentUser(null);
       setScreen('menu');
       toast.success('Đã thoát!');
@@ -1425,7 +1435,7 @@ useEffect(() => {
 
       if (snap.exists()) {
         const data = snap.data();
-        const now = Date.now();
+        const now = getRealTime();
         const lastUpdate = data.last_update_ms || 0;
 
         // Nếu ID khớp (cùng thiết bị) hoặc mới Online cách đây < 15 giây (do load lại trang)
@@ -1656,13 +1666,13 @@ useEffect(() => {
       let lastLost = currentUser ? gs.livesUpdatedAt : parseInt(secureStorage.getItem('astro_guest_last_lost'));
       
       if (!lastLost || isNaN(lastLost)) {
-        lastLost = Date.now();
+        lastLost = getRealTime();
         gs.livesUpdatedAt = lastLost;
         if (!currentUser) secureStorage.setItem('astro_guest_last_lost', lastLost);
         return;
       }
 
-      const now = Date.now();
+      const now = getRealTime();
       const timePassed = now - lastLost;
 
       // KIỂM TRA HỒI MẠNG (Xử lý được cả trường hợp hồi nhiều mạng cùng lúc)
