@@ -70,7 +70,7 @@ export default function Shop({ uiUpdates, setUIUpdates, gsRef, setScreen, select
             <div style={{ background: 'rgba(0,0,0,0.6)', padding: '5px 20px', borderRadius: '12px', color: '#ff4757', fontSize: '24px', border: '2px solid #ff4757', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="pixel-icon icon-heart"></span>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: '1.2' }}>
-                <span style={{ fontFamily: "'VT323', monospace", fontWeight: 'bold' }}>{uiUpdates.lives || 0}/5</span>
+                <span style={{ fontFamily: "'VT323', monospace", fontWeight: 'bold' }}>{uiUpdates.lives || 0}/10</span>
                 {uiUpdates.nextLifeTime && <span style={{ fontSize: '14px', color: '#ccc' }}>{uiUpdates.nextLifeTime}</span>}
               </div>
             </div>
@@ -120,7 +120,7 @@ export default function Shop({ uiUpdates, setUIUpdates, gsRef, setScreen, select
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '15px', width: '100%', maxWidth: '240px' }}>
               <div style={{ color: '#ff4757', fontSize: '26px', marginBottom: '5px' }}>TIỆN ÍCH</div>
               <div className="shop-item" onClick={async () => {
-                  if (gsRef.current.lives >= 5) return toast.error("Mạng đã đầy (5/5)!");
+                  if (gsRef.current.lives >= 5) return toast.error("Mạng đã đầy (10/10)!");
                   if (Number(gsRef.current.coins) < 50) return toast.error("Không đủ Xu!");
                   gsRef.current.coins -= 50;
                   gsRef.current.lives += 1;
