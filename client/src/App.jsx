@@ -400,8 +400,8 @@ useEffect(() => {
 
     // 2. XỬ LÝ MẠNG VÀ THỜI GIAN HỒI MẠNG
     if (gs.lives > 0) {
-      // Nếu mạng đang đầy (5) mà bắt đầu mất mạng -> Ghi lại mốc thời gian bắt đầu hồi mạng
-      if (gs.lives === 10) {
+      // SỬA TẠI ĐÂY: Tạo mốc thời gian nếu mạng đang đầy (10) HOẶC khi mốc thời gian bị trống (do dữ liệu cũ)
+      if (gs.lives >= 10 || !gs.livesUpdatedAt) {
         const now = getRealTime();
         gs.livesUpdatedAt = now;
         if (!currentUser) {
@@ -906,7 +906,13 @@ useEffect(() => {
         gs.score++;
         p.passed = true;
         Sound.score();
-        setUIUpdates(prev => ({ ...prev, score: gs.score }));
+        
+        // CẬP NHẬT ĐIỂM TRỰC TIẾP
+        const scoreVal = document.getElementById('scoreVal');
+        if (scoreVal) scoreVal.innerText = gs.score;
+        const pvpScoreYou = document.getElementById('pvpScoreYou');
+        if (pvpScoreYou) pvpScoreYou.innerText = gs.score;
+
         checkLevelUp();
         if (gs.gameMode === 'online') sendData();
       }
@@ -994,14 +1000,14 @@ useEffect(() => {
 
       // Hàm vẽ từng Cột Năng Lượng (Trên và Dưới)
       const drawEnergyPillar = (y, height, isTop) => {
-        // 1. Quầng sáng (Neon Glow)
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = glowColor;
+        // 1. Quầng sáng (Fake Neon Glow - Thay cho shadowBlur)
         ctx.fillStyle = glowColor;
-        ctx.globalAlpha = 0.5;
-        ctx.fillRect(currentX, y, gs.pipes.w, height);
+        ctx.globalAlpha = 0.2; // Lớp viền mờ to ngoài cùng
+        ctx.fillRect(currentX - 5, y, gs.pipes.w + 10, height);
+        ctx.globalAlpha = 0.5; // Lớp viền mờ nhỏ bên trong
+        ctx.fillRect(currentX - 2, y, gs.pipes.w + 4, height);
 
-        // 2. Lõi Laser (Inner Core) - Sáng chói ở giữa
+        // 2. Lõi Laser (Inner Core)
         ctx.fillStyle = coreColor;
         ctx.globalAlpha = 1;
         const coreWidth = gs.pipes.w * 0.4;
@@ -1009,16 +1015,15 @@ useEffect(() => {
         ctx.fillRect(currentX + coreOffset, y, coreWidth, height);
 
         // 3. Viền công nghệ
-        ctx.shadowBlur = 0; // Tạm tắt glow để vẽ viền cho nét
         ctx.strokeStyle = borderColor;
         ctx.lineWidth = 2;
         ctx.strokeRect(currentX, y, gs.pipes.w, height);
 
-        // 4. Vòng năng lượng di chuyển (Animation trôi dọc cột)
+        // 4. Vòng năng lượng di chuyển (Animation)
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        const offset = (gs.frames * 2) % 40; // Tốc độ trôi
+        const offset = (gs.frames * 2) % 40; 
         for (let k = (isTop ? y + height : y) - offset; isTop ? k > y : k < y + height; isTop ? k -= 40 : k += 40) {
            if (k > y && k < y + height) {
               ctx.moveTo(currentX, k);
@@ -1027,21 +1032,15 @@ useEffect(() => {
         }
         ctx.stroke();
         
-        // 5. Đế phát Laser (Emitter Base) bằng kim loại đen ở đầu cột
-        ctx.fillStyle = '#1e272e'; // Màu kim loại đen
+        // 5. Đế phát Laser 
+        ctx.fillStyle = '#1e272e'; 
         const baseHeight = 15;
         const baseY = isTop ? y + height - baseHeight : y;
         
-        // Vẽ khối đế
         ctx.fillRect(currentX - 4, baseY, gs.pipes.w + 8, baseHeight);
-        
-        // Viền sáng cho khối đế
         ctx.strokeStyle = glowColor;
         ctx.lineWidth = 2;
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = glowColor;
         ctx.strokeRect(currentX - 4, baseY, gs.pipes.w + 8, baseHeight);
-        ctx.shadowBlur = 0; // Tắt glow
       };
 
       // Gọi hàm vẽ cột trên và cột dưới
@@ -1103,12 +1102,27 @@ useEffect(() => {
     const canvas = gs.canvas;
     const bg = BACKGROUNDS.find(b => b.id === gs.userSettings.bg) || BACKGROUNDS[0];
 
-    const grd = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    grd.addColorStop(0, bg.top);
-    grd.addColorStop(1, bg.bottom);
-    ctx.fillStyle = grd;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // TỐI ƯU HÓA: Tạo Off-screen Canvas để cache background gradient
+    if (!gs.cachedBg || gs.cachedBgId !== bg.id || gs.cachedBg.width !== canvas.width) {
+      const offScreen = document.createElement('canvas');
+      offScreen.width = canvas.width;
+      offScreen.height = canvas.height;
+      const offCtx = offScreen.getContext('2d');
+      
+      const grd = offCtx.createLinearGradient(0, 0, 0, canvas.height);
+      grd.addColorStop(0, bg.top);
+      grd.addColorStop(1, bg.bottom);
+      offCtx.fillStyle = grd;
+      offCtx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      gs.cachedBg = offScreen;
+      gs.cachedBgId = bg.id;
+    }
 
+    // Vẽ nền đã cache (Cực kỳ nhẹ)
+    ctx.drawImage(gs.cachedBg, 0, 0);
+
+    // Vẽ sao (Stars)
     if (bg.stars) {
       ctx.fillStyle = '#fff';
       for (let s of gs.background.stars) {
@@ -1145,15 +1159,28 @@ useEffect(() => {
           Sound.powerUp();
           createParticles(p.x, p.y, p.type === 'SHIELD' ? '#00FFFF' : '#FFD700', 10);
 
-          if (p.type === 'SHIELD') { gs.cat.isInvincible = true; gs.cat.invincibleTimer = 300; } 
+          if (p.type === 'SHIELD') { 
+            gs.cat.isInvincible = true; 
+            gs.cat.invincibleTimer = 300; 
+          } 
           else if (p.type === 'STAR') { 
             gs.score += 5; 
-            setUIUpdates(prev => ({ ...prev, score: gs.score })); 
+            // CẬP NHẬT ĐIỂM TRỰC TIẾP
+            const scoreVal = document.getElementById('scoreVal');
+            if (scoreVal) scoreVal.innerText = gs.score;
+            const pvpScoreYou = document.getElementById('pvpScoreYou');
+            if (pvpScoreYou) pvpScoreYou.innerText = gs.score;
+            
             if (gs.gameMode === 'online') sendData();
-         }
+          }
           else if (p.type === 'COIN') {
             gs.coins += 1; 
-            setUIUpdates(prev => ({ ...prev, coins: gs.coins }));
+            // CẬP NHẬT XU TRỰC TIẾP
+            const coinVal = document.getElementById('coinVal');
+            if (coinVal) coinVal.innerText = gs.coins;
+            const pvpCoinVal = document.getElementById('pvpCoinVal');
+            if (pvpCoinVal) pvpCoinVal.innerText = gs.coins;
+            
             if (!auth.currentUser) secureStorage.setItem('astro_guest_coins', gs.coins);
           }
         }
@@ -1462,7 +1489,12 @@ useEffect(() => {
         gsRef.current.lives = data.lives !== undefined ? data.lives : 10;
 
         if (gsRef.current.lives < 10) {
-          gsRef.current.livesUpdatedAt = data.livesUpdatedAt || Date.now();
+          if (!data.livesUpdatedAt) {
+            gsRef.current.livesUpdatedAt = now;
+            updateDoc(userRef, { livesUpdatedAt: now });
+          } else {
+            gsRef.current.livesUpdatedAt = data.livesUpdatedAt;
+          }
         } else {
           gsRef.current.livesUpdatedAt = null;
         }
@@ -1512,10 +1544,23 @@ useEffect(() => {
         await loadUserProfile(user);
       } else {
         // Xử lý khách (Guest)
-        let guestLives = parseInt(secureStorage.getItem('astro_guest_lives')) || 10;
+        let savedLives = secureStorage.getItem('astro_guest_lives');
+        // SỬA LỖI 0 || 10 bằng cách kiểm tra null rõ ràng
+        let guestLives = savedLives !== null ? parseInt(savedLives) : 10; 
         let guestCoins = parseInt(secureStorage.getItem('astro_guest_coins')) || 0;
+        
         gsRef.current.lives = guestLives;
         gsRef.current.coins = guestCoins;
+        
+        // Khôi phục mốc đếm ngược cho Guest
+        if (guestLives < 10) {
+          let lastLost = secureStorage.getItem('astro_guest_last_lost');
+          gsRef.current.livesUpdatedAt = lastLost ? parseInt(lastLost) : getRealTime();
+          if (!lastLost) secureStorage.setItem('astro_guest_last_lost', gsRef.current.livesUpdatedAt);
+        } else {
+          gsRef.current.livesUpdatedAt = null;
+        }
+
         setUIUpdates(prev => ({ ...prev, lives: guestLives, coins: guestCoins }));
       }
     });
