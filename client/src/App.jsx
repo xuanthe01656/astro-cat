@@ -1698,8 +1698,9 @@ useEffect(() => {
     // NẾU LÀ NATIVE (ANDROID/IOS) -> CHẠY ADMOB THẬT
     const loadingToast = toast.loading('Đang kết nối AdMob...');
     try {
-      const adId = 'ca-app-pub-3940256099942544/5224354917';
-      await AdMob.prepareRewardVideoAd({ adId, isTesting: true });
+      //const adId = 'ca-app-pub-3940256099942544/5224354917';
+      const adId = 'ca-app-pub-8735238443425732/7696488422'; // ID quảng cáo thật đã tạo trên AdMob
+      await AdMob.prepareRewardVideoAd({ adId, isTesting: false });
       toast.dismiss(loadingToast);
       await AdMob.showRewardVideoAd();
     } catch (error) {
