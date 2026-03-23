@@ -2,7 +2,7 @@ import React from 'react';
 import toast from 'react-hot-toast';
 import { SKINS, BACKGROUNDS } from '../constants';
 
-export default function Shop({ uiUpdates, setUIUpdates, gsRef, setScreen, selectSkin, selectBg, saveUserProfile, watchAd, isWatchingAd }) {
+export default function Shop({ currentUser, uiUpdates, setUIUpdates, gsRef, setScreen, selectSkin, selectBg, saveUserProfile, watchAd, isWatchingAd }) {
   
   // Logic mua vật phẩm dùng chung (Bảo mật + Chống lỗi)
   const handlePurchase = async (type, item) => {
@@ -39,7 +39,41 @@ export default function Shop({ uiUpdates, setUIUpdates, gsRef, setScreen, select
     await saveUserProfile();
     toast.success(`Đã sở hữu ${item.name}!`);
   };
+// --- HÀM GIẢ LẬP MUA VIP (TEST) ---
+  const handleBuyVIP = async () => {
+    // KIỂM TRA ĐĂNG NHẬP TRƯỚC TIÊN
+    if (!currentUser) {
+      toast.error("⚠️ Vui lòng đăng nhập tài khoản Google để mua Gói VIP!");
+      return;
+    }
+    // ⚠️ ==========================================
+    // KHI NÀO TÍCH HỢP THANH TOÁN THẬT (VD: REVENUECAT), BẠN DÁN CODE VÀO ĐÂY:
+    // try {
+    //   const purchaseInfo = await Purchases.purchaseProduct('astro_cat_vip_pack');
+    //   if (!purchaseInfo.customerInfo.entitlements.active['vip_status']) return; 
+    // } catch (e) { console.log("Hủy mua hoặc Lỗi"); return; }
+    // ========================================== ⚠️
 
+    // LOGIC CẤP QUYỀN VIP (Chạy khi thanh toán thành công)
+    
+    // 1. Cập nhật dữ liệu vào biến toàn cục
+    gsRef.current.isVIP = true;
+    gsRef.current.lives = '∞'; // Đổi số mạng thành vô cực
+    gsRef.current.livesUpdatedAt = null;
+
+    // 2. Cập nhật giao diện (UI) ngay lập tức
+    setUIUpdates(prev => ({
+      ...prev,
+      isVIP: true,
+      lives: '∞',
+      nextLifeTime: null
+    }));
+
+    // 3. Lưu trạng thái VIP lên Firebase
+    await saveUserProfile();
+    
+    toast.success("✨ Chúc mừng! Bạn đã kích hoạt GÓI VIP ✨", { duration: 4000 });
+  };
   return (
     <div className="ui-layer" style={{ background: 'rgba(0, 8, 20, 0.95)', padding: '20px 0' }}>
       
@@ -70,12 +104,54 @@ export default function Shop({ uiUpdates, setUIUpdates, gsRef, setScreen, select
             <div style={{ background: 'rgba(0,0,0,0.6)', padding: '5px 20px', borderRadius: '12px', color: '#ff4757', fontSize: '24px', border: '2px solid #ff4757', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="pixel-icon icon-heart"></span>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: '1.2' }}>
-                <span style={{ fontFamily: "'VT323', monospace", fontWeight: 'bold' }}>{uiUpdates.lives || 0}/10</span>
-                {uiUpdates.nextLifeTime && <span style={{ fontSize: '14px', color: '#ccc' }}>{uiUpdates.nextLifeTime}</span>}
+                <span style={{ fontFamily: "'VT323', monospace", fontWeight: 'bold' }}>
+                  {uiUpdates.isVIP ? '∞' : `${uiUpdates.lives || 0}/10`}
+                </span>
+                {!uiUpdates.isVIP && uiUpdates.nextLifeTime && <span style={{ fontSize: '14px', color: '#ccc' }}>{uiUpdates.nextLifeTime}</span>}
               </div>
             </div>
           </div>
-          
+          <div style={{ width: '100%', maxWidth: '600px', marginBottom: '20px' }}>
+            {!uiUpdates.isVIP ? (
+              <div onClick={handleBuyVIP} className="shop-item" style={{
+                background: 'linear-gradient(45deg, #FFD700, #ff9f43)',
+                border: '3px solid #fff',
+                borderRadius: '15px',
+                padding: '15px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                cursor: 'pointer',
+                boxShadow: '0 0 20px rgba(255, 215, 0, 0.6)'
+              }}>
+                <div style={{ textAlign: 'left', fontFamily: "'VT323', monospace" }}>
+                  <div style={{ fontSize: '28px', color: '#000', fontWeight: 'bold', textShadow: '1px 1px 0 #fff' }}>👑 GÓI VIP ĐẶC QUYỀN</div>
+                  <div style={{ fontSize: '18px', color: '#222', marginTop: '5px', fontWeight: 'bold', textShadow: 'none' }}>
+                    • Mạng Vô Hạn (∞) vĩnh viễn<br/>
+                    • Nhận thẳng 50 Xu (Không quảng cáo)
+                  </div>
+                </div>
+                <div style={{ fontSize: '20px', background: '#000', color: '#FFD700', padding: '10px 15px', borderRadius: '10px', fontWeight: 'bold', fontFamily: "'VT323', monospace", border: '2px solid #FFD700' }}>
+                  MUA NGAY<br/>(TEST)
+                </div>
+              </div>
+            ) : (
+               <div style={{
+                background: 'rgba(255, 215, 0, 0.1)',
+                border: '2px dashed #FFD700',
+                borderRadius: '15px',
+                padding: '15px',
+                textAlign: 'center',
+                color: '#FFD700',
+                fontSize: '24px',
+                fontWeight: 'bold',
+                fontFamily: "'VT323', monospace",
+                textShadow: '0 0 10px rgba(255, 215, 0, 0.5)'
+              }}>
+                👑 BẠN ĐANG SỞ HỮU ĐẶC QUYỀN VIP
+              </div>
+            )}
+          </div>
           <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', flexWrap: 'wrap', justifyContent: 'center', width: '100%' }}>
             
             {/* CỘT 1: SKIN */}
@@ -119,30 +195,56 @@ export default function Shop({ uiUpdates, setUIUpdates, gsRef, setScreen, select
             {/* CỘT 3: TIỆN ÍCH */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '15px', width: '100%', maxWidth: '240px' }}>
               <div style={{ color: '#ff4757', fontSize: '26px', marginBottom: '5px' }}>TIỆN ÍCH</div>
-              <div className="shop-item" onClick={async () => {
-                  if (gsRef.current.lives >= 5) return toast.error("Mạng đã đầy (10/10)!");
-                  if (Number(gsRef.current.coins) < 50) return toast.error("Không đủ Xu!");
-                  gsRef.current.coins -= 50;
-                  gsRef.current.lives += 1;
-                  setUIUpdates(prev => ({...prev, coins: gsRef.current.coins, lives: gsRef.current.lives})); 
-                  await saveUserProfile(); 
-                  toast.success("Đã hồi 1 Mạng!");
-                }} 
-                style={{ border: '2px solid #ff4757', background: '#333', width: '100%', height: '80px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '8px', flexDirection: 'column' }}>
-                <div style={{ fontSize: '18px', color: '#fff' }}><span className="pixel-icon icon-heart"></span> +1 MẠNG CHƠI</div>
-                <div style={{ fontSize: '18px', color: '#FFD700', fontWeight: 'bold' }}>🪙 GIÁ: 50 XU</div>
-              </div>
-              <div style={{ width: '100%', height: '1px', background: '#555', margin: '5px 0' }}></div>
-              <div className="shop-item" onClick={() => watchAd('coin')} style={{ pointerEvents: isWatchingAd ? 'none' : 'auto', opacity: isWatchingAd ? 0.5 : 1, border: '2px solid #2ed573', background: '#2ed573', width: '100%', height: '50px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '8px', gap: '10px' }}>
-                <div className="pixel-icon icon-tv"></div>
-                <div style={{ fontSize: '18px', color: '#FFD700', fontWeight: 'bold' }}>FREE 50 XU</div>
-              </div>
-              <div className="shop-item" onClick={() => watchAd('life')} style={{ pointerEvents: isWatchingAd ? 'none' : 'auto', opacity: isWatchingAd ? 0.5 : 1, border: '2px solid #ff4757', background: '#ff4757', width: '100%', height: '50px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '8px', gap: '10px' }}>
-                <div className="pixel-icon icon-tv"></div>
-                <div style={{ fontSize: '18px', color: '#fff', fontWeight: 'bold' }}>FREE 1 MẠNG</div>
-              </div>
-            </div>
+              
+              {/* NÚT MUA MẠNG CHỈ HIỂN THỊ KHI CHƯA VIP */}
+              {!uiUpdates.isVIP && (
+                <div className="shop-item" onClick={async () => {
+                    if (gsRef.current.lives >= 10) return toast.error("Mạng đã đầy (10/10)!");
+                    if (Number(gsRef.current.coins) < 50) return toast.error("Không đủ Xu!");
+                    gsRef.current.coins -= 50;
+                    gsRef.current.lives += 1;
+                    setUIUpdates(prev => ({...prev, coins: gsRef.current.coins, lives: gsRef.current.lives})); 
+                    await saveUserProfile(); 
+                    toast.success("Đã hồi 1 Mạng!");
+                  }} 
+                  style={{ border: '2px solid #ff4757', background: '#333', width: '100%', height: '80px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '8px', flexDirection: 'column' }}>
+                  <div style={{ fontSize: '18px', color: '#fff' }}><span className="pixel-icon icon-heart"></span> +1 MẠNG CHƠI</div>
+                  <div style={{ fontSize: '18px', color: '#FFD700', fontWeight: 'bold' }}>🪙 GIÁ: 50 XU</div>
+                </div>
+              )}
 
+              <div style={{ width: '100%', height: '1px', background: '#555', margin: '5px 0' }}></div>
+              
+              {/* NÚT NHẬN XU (VIP NHẬN THẲNG KHÔNG XEM AD) */}
+              <div className="shop-item" onClick={() => {
+                if (uiUpdates.isVIP) {
+                  // VIP bấm phát ăn luôn nhưng vẫn bị giới hạn 5 lần/ngày
+                  if (gsRef.current.dailyCoinCount >= 5) {
+                    toast.error('Hôm nay bạn đã nhận tối đa 5 lần rồi. Mai quay lại nhé!');
+                    return;
+                  }
+                  gsRef.current.coins += 50;
+                  gsRef.current.dailyCoinCount += 1; // Tăng lượt
+                  setUIUpdates(prev => ({...prev, coins: gsRef.current.coins}));
+                  saveUserProfile();
+                  toast.success(`🎁 VIP: Đã nhận 50 Xu! (${gsRef.current.dailyCoinCount}/5)`);
+                } else {
+                  // Người thường thì phải gọi hàm xem quảng cáo
+                  watchAd('coin');
+                }
+              }} style={{ pointerEvents: (!uiUpdates.isVIP && isWatchingAd) ? 'none' : 'auto', opacity: (!uiUpdates.isVIP && isWatchingAd) ? 0.5 : 1, border: '2px solid #2ed573', background: '#2ed573', width: '100%', height: '50px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '8px', gap: '10px' }}>
+                <div className="pixel-icon icon-tv"></div>
+                <div style={{ fontSize: '18px', color: '#FFD700', fontWeight: 'bold' }}>{uiUpdates.isVIP ? 'NHẬN 50 XU' : 'FREE 50 XU'}</div>
+              </div>
+
+              {/* NÚT AD MẠNG (ẨN NẾU LÀ VIP VÌ VIP ĐÃ VÔ HẠN) */}
+              {!uiUpdates.isVIP && (
+                <div className="shop-item" onClick={() => watchAd('life')} style={{ pointerEvents: isWatchingAd ? 'none' : 'auto', opacity: isWatchingAd ? 0.5 : 1, border: '2px solid #ff4757', background: '#ff4757', width: '100%', height: '50px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '8px', gap: '10px' }}>
+                  <div className="pixel-icon icon-tv"></div>
+                  <div style={{ fontSize: '18px', color: '#fff', fontWeight: 'bold' }}>FREE 1 MẠNG</div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

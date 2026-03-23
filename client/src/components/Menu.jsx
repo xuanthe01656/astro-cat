@@ -66,7 +66,8 @@ export default function Menu({ currentUser, uiUpdates, topRecords, startGame, se
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
               <span className="pixel-icon icon-heart"></span>
-              <span>{uiUpdates.lives || 0}/10</span>
+              {/* Nếu là VIP thì hiện Vô Cực, ngược lại hiện số mạng */}
+              <span>{uiUpdates.isVIP ? '∞' : `${uiUpdates.lives || 0}/10`}</span>
             </div>
             
             {uiUpdates.nextLifeTime && (

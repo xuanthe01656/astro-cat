@@ -74,7 +74,7 @@ export default function Game() {
   const [countdown, setCountdown] = useState(null);
   const countdownTimerRef = useRef(null);
   // const [frameCount, setFrameCount] = useState(0);
-  const [uiUpdates, setUIUpdates] = useState({ score: 0, level: 1 });
+  const [uiUpdates, setUIUpdates] = useState({ score: 0, level: 1, isVIP: false });
   const [currentUser, setCurrentUser] = useState(null);
   const [userRankData, setUserRankData] = useState(null);
   const [isWatchingAd, setIsWatchingAd] = useState(false);
@@ -102,6 +102,9 @@ export default function Game() {
     isPlaying: false,
     isPaused: false,
     isMuted: false,
+    isVIP: false,
+    dailyCoinCount: 0,   // Số lần đã nhận xu hôm nay
+    lastCoinDate: '',
     userIP: 'unknown',
     gameMode: 'single',
     myName: 'Player',
@@ -399,21 +402,22 @@ useEffect(() => {
     }
 
     // 2. XỬ LÝ MẠNG VÀ THỜI GIAN HỒI MẠNG
-    if (gs.lives > 0) {
-      // SỬA TẠI ĐÂY: Tạo mốc thời gian nếu mạng đang đầy (10) HOẶC khi mốc thời gian bị trống (do dữ liệu cũ)
-      if (gs.lives >= 10 || !gs.livesUpdatedAt) {
-        const now = getRealTime();
-        gs.livesUpdatedAt = now;
-        if (!currentUser) {
-          secureStorage.setItem('astro_guest_last_lost', now);
+    if (!gs.isVIP) { // CHỈ TRỪ MẠNG NẾU KHÔNG PHẢI VIP
+      if (gs.lives > 0) {
+        if (gs.lives >= 10 || !gs.livesUpdatedAt) {
+          const now = getRealTime();
+          gs.livesUpdatedAt = now;
+          if (!currentUser) {
+            secureStorage.setItem('astro_guest_last_lost', now);
+          }
         }
-      }
 
-      gs.lives -= 1;
-      setUIUpdates(prev => ({ ...prev, lives: gs.lives }));
+        gs.lives -= 1;
+        setUIUpdates(prev => ({ ...prev, lives: gs.lives }));
 
-      if (!currentUser) {
-        secureStorage.setItem('astro_guest_lives', gs.lives);
+        if (!currentUser) {
+          secureStorage.setItem('astro_guest_lives', gs.lives);
+        }
       }
     }
 
@@ -812,7 +816,7 @@ useEffect(() => {
   };
 
  const startGame = (mode) => {
-    if (gsRef.current.lives <= 0) {
+    if (!gsRef.current.isVIP && gsRef.current.lives <= 0) {
       toast.error('❌ Bạn đã hết mạng! Hãy chờ hồi phục hoặc Xem quảng cáo.');
       return;
     }
@@ -1337,6 +1341,13 @@ useEffect(() => {
 
   useEffect(() => {
     const gs = gsRef.current;
+    // Nếu là VIP hoặc mạng đã đầy thì không cần tính toán
+    if (gs.isVIP || gs.lives >= 10) {
+      if (uiUpdates.nextLifeTime) {
+        setUIUpdates(prev => ({ ...prev, nextLifeTime: null }));
+      }
+      return;
+    }
     const canvas = canvasRef.current;
     
     if (canvas && !gs.canvas) {
@@ -1487,8 +1498,39 @@ useEffect(() => {
         // Tải dữ liệu
         gsRef.current.coins = data.coins || 0;
         gsRef.current.lives = data.lives !== undefined ? data.lives : 10;
+        gsRef.current.isVIP = data.isVIP || false;
+        // Xử lý nạp mạng và Vô cực (∞)
+        if (gsRef.current.isVIP) {
+          gsRef.current.lives = '∞';
+          gsRef.current.livesUpdatedAt = null;
+        } else {
+          gsRef.current.lives = data.lives !== undefined ? data.lives : 10;
+          if (gsRef.current.lives < 10) {
+            if (!data.livesUpdatedAt) {
+              gsRef.current.livesUpdatedAt = now;
+              updateDoc(userRef, { livesUpdatedAt: now });
+            } else {
+              gsRef.current.livesUpdatedAt = data.livesUpdatedAt;
+            }
+          } else {
+            gsRef.current.livesUpdatedAt = null;
+          }
+        }
+        // KIỂM TRA RESET LƯỢT NHẬN XU THEO NGÀY
+        // Lấy giờ thật đã được đồng bộ qua API (Chống hack đổi giờ trên máy)
+        const realTimeNow = new Date(getRealTime());
+        // Tạo chuỗi ngày chuẩn (Ví dụ: "2026-3-23")
+        const today = `${realTimeNow.getFullYear()}-${realTimeNow.getMonth() + 1}-${realTimeNow.getDate()}`;
+        if (data.lastCoinDate === today) {
+          gsRef.current.dailyCoinCount = data.dailyCoinCount || 0; 
+        } else {
+          gsRef.current.dailyCoinCount = 0; // Đã qua ngày mới chuẩn quốc tế -> Reset
+        }
+        gsRef.current.lastCoinDate = today;
 
-        if (gsRef.current.lives < 10) {
+        if (gsRef.current.isVIP) {
+          gsRef.current.livesUpdatedAt = null;
+        } else if (gsRef.current.lives < 10) {
           if (!data.livesUpdatedAt) {
             gsRef.current.livesUpdatedAt = now;
             updateDoc(userRef, { livesUpdatedAt: now });
@@ -1511,7 +1553,7 @@ useEffect(() => {
           coins: 0, lives: 10, highScore: 0
         });
       }
-      setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins, lives: gsRef.current.lives }));
+      setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins, lives: gsRef.current.lives, isVIP: gsRef.current.isVIP, nextLifeTime: gsRef.current.isVIP ? null : prev.nextLifeTime}));
     } catch (error) {
       console.error("Lỗi tải hồ sơ:", error);
     }
@@ -1527,6 +1569,9 @@ useEffect(() => {
       coins: gsRef.current.coins,
       lives: gsRef.current.lives,
       livesUpdatedAt: gsRef.current.livesUpdatedAt,
+      isVIP: gsRef.current.isVIP || false,
+      dailyCoinCount: gsRef.current.dailyCoinCount,
+      lastCoinDate: gsRef.current.lastCoinDate,
       inventory: gsRef.current.inventory,
       equipped: gsRef.current.userSettings,
     });
@@ -1631,6 +1676,11 @@ useEffect(() => {
       toast.error('Túi mạng đã đầy 10/10. Bạn không cần xem thêm!');
       return; 
     }
+    // THÊM KIỂM TRA GIỚI HẠN NHẬN XU (TỐI ĐA 5 LẦN/NGÀY)
+    if (rewardType === 'coin' && gsRef.current.dailyCoinCount >= 5) {
+      toast.error('Hôm nay bạn đã nhận tối đa 5 lần rồi. Hãy quay lại vào ngày mai nhé!');
+      return;
+    }
     if (isWatchingAd) return;
 
     setIsWatchingAd(true);
@@ -1671,6 +1721,7 @@ useEffect(() => {
 
     if (rewardType === 'coin') {
       gsRef.current.coins += 50; 
+      gsRef.current.dailyCoinCount += 1;
       setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins }));
       toast.success('🎁 Phần thưởng: +50 XU!');
     } else if (rewardType === 'life') {
@@ -1698,7 +1749,12 @@ useEffect(() => {
     
     const timer = setInterval(() => {
       const gs = gsRef.current;
-      
+      if (gs.isVIP) {
+        if (uiUpdates.nextLifeTime !== null || uiUpdates.lives !== '∞') {
+          setUIUpdates(prev => ({ ...prev, nextLifeTime: null, lives: '∞' }));
+        }
+        return; // Thoát ra, không đếm nữa
+      }
       // Nếu mạng đã đầy thì không cần tính toán
       if (gs.lives >= 10) {
         if (uiUpdates.nextLifeTime) {
@@ -1821,6 +1877,7 @@ useEffect(() => {
 
       {screen === 'shop' && (
         <Shop 
+          currentUser={currentUser}
           uiUpdates={uiUpdates} 
           setUIUpdates={setUIUpdates} 
           gsRef={gsRef} 
