@@ -181,27 +181,35 @@ useEffect(() => {
       setCountdown(null);
     }
   }, [screen]);
-  // Get user IP
- // Get user IP và Đồng bộ thời gian Server
+ // Get user IP và Đồng bộ thời gian Server (Có fallback dự phòng chống sập)
   useEffect(() => {
-    // 1. Lấy IP
     fetch('https://api.ipify.org?format=json')
       .then(r => r.json())
       .then(d => { gsRef.current.userIP = d.ip; })
       .catch(e => console.log("IP Error"));
 
-    // 2. Lấy giờ chuẩn từ Internet (Chống hack đổi giờ máy)
     const syncTime = async () => {
-      try {
-        const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC');
-        const data = await res.json();
-        const realTimeMs = new Date(data.utc_datetime).getTime();
-        const localTimeMs = Date.now();
-        // Lưu lại khoảng chênh lệch
-        gsRef.current.timeOffset = realTimeMs - localTimeMs; 
-      } catch (error) {
-        console.log("Lỗi đồng bộ giờ, dùng giờ máy cục bộ.");
+      const sources = [
+        'https://worldtimeapi.org/api/timezone/Etc/UTC',
+        'https://timeapi.io/api/Time/current/zone?timeZone=UTC' // API dự phòng siêu ổn định
+      ];
+
+      for (const url of sources) {
+        try {
+          const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+          if (!res.ok) continue;
+          
+          const data = await res.json();
+          // Hỗ trợ cả 2 chuẩn format trả về của 2 API
+          const realTimeMs = new Date(data.utc_datetime || data.dateTime).getTime();
+          gsRef.current.timeOffset = realTimeMs - Date.now(); 
+          return; // Lấy được giờ chuẩn thì thoát luôn
+        } catch (error) {
+          console.log(`Nguồn ${url} quá tải, đang thử nguồn khác...`);
+        }
       }
+      // Nếu đứt cáp hoặc sập toàn bộ mạng, đành dùng tạm giờ của máy
+      gsRef.current.timeOffset = 0; 
     };
     syncTime();
   }, []);
