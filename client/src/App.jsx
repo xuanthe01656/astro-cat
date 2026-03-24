@@ -188,27 +188,43 @@ useEffect(() => {
       .then(d => { gsRef.current.userIP = d.ip; })
       .catch(e => console.log("IP Error"));
 
+    // 2. Lấy giờ chuẩn từ Internet (Chống hack đổi giờ máy)
     const syncTime = async () => {
+      // Sử dụng các nguồn API ổn định hơn worldtimeapi
       const sources = [
-        'https://worldtimeapi.org/api/timezone/Etc/UTC',
-        'https://timeapi.io/api/Time/current/zone?timeZone=UTC' // API dự phòng siêu ổn định
+        'https://timeapi.io/api/Time/current/zone?timeZone=UTC', // Nguồn 1: Cực kỳ ổn định
+        'https://worldclockapi.com/api/json/utc/now'              // Nguồn 2: Dự phòng
       ];
 
       for (const url of sources) {
         try {
+          // Giới hạn thời gian chờ 4 giây để game không bị treo nếu mạng lag
           const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
           if (!res.ok) continue;
           
           const data = await res.json();
-          // Hỗ trợ cả 2 chuẩn format trả về của 2 API
-          const realTimeMs = new Date(data.utc_datetime || data.dateTime).getTime();
-          gsRef.current.timeOffset = realTimeMs - Date.now(); 
-          return; // Lấy được giờ chuẩn thì thoát luôn
+          // Hỗ trợ đọc cả 2 format của 2 API trên
+          let timeString = data.dateTime || data.currentDateTime; 
+          
+          // Đảm bảo chuỗi thời gian luôn ở chuẩn UTC (thêm chữ Z ở cuối nếu thiếu)
+          if (timeString && !timeString.endsWith('Z')) {
+             timeString += 'Z';
+          }
+
+          const realTimeMs = new Date(timeString).getTime();
+          
+          if (!isNaN(realTimeMs)) {
+            gsRef.current.timeOffset = realTimeMs - Date.now(); 
+            console.log("✅ Đã đồng bộ giờ chuẩn từ:", url);
+            return; // Lấy thành công thì thoát luôn, không chạy nguồn 2
+          }
         } catch (error) {
-          console.log(`Nguồn ${url} quá tải, đang thử nguồn khác...`);
+          console.warn(`⚠️ Nguồn ${url} lỗi, đang thử nguồn tiếp theo...`);
         }
       }
-      // Nếu đứt cáp hoặc sập toàn bộ mạng, đành dùng tạm giờ của máy
+      
+      // Nếu tất cả API đều sập, đành dùng giờ của máy tính/điện thoại
+      console.warn("❌ Tất cả API giờ đều lỗi, dùng giờ thiết bị cục bộ.");
       gsRef.current.timeOffset = 0; 
     };
     syncTime();
