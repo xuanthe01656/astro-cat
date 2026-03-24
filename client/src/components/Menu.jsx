@@ -99,6 +99,22 @@ export default function Menu({ currentUser, uiUpdates, topRecords, startGame, se
         }}>⚔️ PvP Online</button>
         <button className="btn btn-blue" onClick={openShop}>🛒 Cửa Hàng</button>
         <button className="btn btn-green" onClick={() => openLeaderboard('single')}>🏆 Xếp Hạng</button>
+        {/* NÚT TẢI APP - CHỈ HIỂN THỊ TRÊN WEB */}
+          {!Capacitor.isNativePlatform() && (
+            <button 
+              className="btn" 
+              onClick={() => window.open("https://play.google.com/store/apps", "_blank")}
+              style={{ 
+                marginTop: '15px', 
+                background: 'linear-gradient(45deg, #2ed573, #7bed9f)', 
+                color: '#000',
+                border: '2px solid #fff',
+                boxShadow: '0 0 15px rgba(46, 213, 115, 0.5)'
+              }}
+            >
+              📱 TẢI APP ANDROID
+            </button>
+          )}
       </div>
 
       <div style={{ marginTop: '20px', fontSize: '22px', textShadow: '2px 2px 4px #000', background: 'rgba(0,0,0,0.5)', padding: '15px', borderRadius: '10px', border: '1px solid #555' }}>

@@ -39,39 +39,47 @@ export default function Shop({ currentUser, uiUpdates, setUIUpdates, gsRef, setS
     await saveUserProfile();
     toast.success(`Đã sở hữu ${item.name}!`);
   };
-// --- HÀM GIẢ LẬP MUA VIP (TEST) ---
   const handleBuyVIP = async () => {
-    // KIỂM TRA ĐĂNG NHẬP TRƯỚC TIÊN
     if (!currentUser) {
       toast.error("⚠️ Vui lòng đăng nhập tài khoản Google để mua Gói VIP!");
       return;
     }
-    // ⚠️ ==========================================
-    // KHI NÀO TÍCH HỢP THANH TOÁN THẬT (VD: REVENUECAT), BẠN DÁN CODE VÀO ĐÂY:
-    // try {
-    //   const purchaseInfo = await Purchases.purchaseProduct('astro_cat_vip_pack');
-    //   if (!purchaseInfo.customerInfo.entitlements.active['vip_status']) return; 
-    // } catch (e) { console.log("Hủy mua hoặc Lỗi"); return; }
-    // ========================================== ⚠️
 
-    // LOGIC CẤP QUYỀN VIP (Chạy khi thanh toán thành công)
+    const isNative = Capacitor.isNativePlatform();
     
-    // 1. Cập nhật dữ liệu vào biến toàn cục
+    // NẾU LÀ WEB: Báo lỗi và hiện nút tải App
+    if (!isNative) {
+      toast((t) => (
+        <div style={{ textAlign: 'center', padding: '5px' }}>
+          <div style={{ fontSize: '30px', marginBottom: '5px' }}>📱</div>
+          <div style={{ fontSize: '16px', marginBottom: '10px', color: '#FFD700' }}>
+            <b>Chỉ hỗ trợ trên Ứng dụng!</b>
+          </div>
+          <div style={{ fontSize: '14px', marginBottom: '15px', color: '#ccc' }}>
+            Vui lòng tải Astro Cat trên Google Play để mua VIP và ủng hộ nhà phát triển nhé.
+          </div>
+          <button 
+            onClick={() => {
+              // THAY LINK BẰNG LINK CH PLAY CỦA BẠN SAU KHI GAME LIVE
+              window.open("https://play.google.com/store/apps", "_blank"); 
+              toast.dismiss(t.id);
+            }}
+            style={{ background: '#2ed573', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', width: '100%', fontFamily: "'VT323', monospace" }}
+          >
+            TẢI APP NGAY
+          </button>
+        </div>
+      ), { duration: 6000, style: { background: '#1a1a2e', border: '2px solid #2ed573' } });
+      return; 
+    }
+
+    // NẾU LÀ APP: (Tạm thời vẫn giữ logic Test chờ bài tích hợp thanh toán thật)
     gsRef.current.isVIP = true;
-    gsRef.current.lives = '∞'; // Đổi số mạng thành vô cực
+    gsRef.current.lives = '∞'; 
     gsRef.current.livesUpdatedAt = null;
 
-    // 2. Cập nhật giao diện (UI) ngay lập tức
-    setUIUpdates(prev => ({
-      ...prev,
-      isVIP: true,
-      lives: '∞',
-      nextLifeTime: null
-    }));
-
-    // 3. Lưu trạng thái VIP lên Firebase
-    await saveUserProfile();
-    
+    setUIUpdates(prev => ({ ...prev, isVIP: true, lives: '∞', nextLifeTime: null }));
+    await saveUserProfile(); 
     toast.success("✨ Chúc mừng! Bạn đã kích hoạt GÓI VIP ✨", { duration: 4000 });
   };
   return (
