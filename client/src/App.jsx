@@ -8,6 +8,8 @@ import { AdMob, RewardAdPluginEvents } from '@capacitor-community/admob';
 import { Capacitor } from '@capacitor/core';
 import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 import { Device } from '@capacitor/device';
+import { Purchases } from '@revenuecat/purchases-capacitor';
+import { t } from './utils/translations';
 
 
 // --- IMPORT CÁC HẰNG SỐ VÀ COMPONENT ĐÃ TÁCH ---
@@ -65,10 +67,14 @@ export default function Game() {
   const loadedImagesRef = useRef({});
 
   const [screen, setScreen] = useState('menu');
+  const [lang, setLang] = useState(secureStorage.getItem('astro_lang') || 'vi');
   const [lobbyState, setLobbyState] = useState('main'); // 'main' or 'wait'
   const [leaderboardMode, setLeaderboardMode] = useState('single');
   const [leaderboardData, setLeaderboardData] = useState([]);
-  const [topRecords, setTopRecords] = useState({ single: 'Đang tải...', pvp: 'Đang tải...' });
+  const [topRecords, setTopRecords] = useState({ 
+    single: t[lang]?.topLoading || 'Đang tải...', 
+    pvp: t[lang]?.topLoading || 'Đang tải...' 
+  });
   const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(false);
   const [levelUpEffect, setLevelUpEffect] = useState(false);
   const [countdown, setCountdown] = useState(null);
@@ -79,7 +85,15 @@ export default function Game() {
   const [userRankData, setUserRankData] = useState(null);
   const [isWatchingAd, setIsWatchingAd] = useState(false);
   const [webAd, setWebAd] = useState({ isPlaying: false, type: null });
-
+  const toggleLanguage = () => {
+    const newLang = lang === 'vi' ? 'en' : 'vi';
+    setLang(newLang);
+    secureStorage.setItem('astro_lang', newLang);
+  };
+  const langRef = useRef(lang);
+  useEffect(() => {
+    langRef.current = lang;
+  }, [lang]);
   const gsRef = useRef({
     canvas: null,
     ctx: null,
@@ -145,7 +159,7 @@ useEffect(() => {
         const info = await Device.getInfo(); 
         
         if (info.isVirtual) {
-          toast.error("Phát hiện môi trường không an toàn (Giả lập)!");
+          toast.error(t[langRef.current]?.errEmulator);
           setTimeout(() => {
              window.location.href = "about:blank";
           }, 3000);
@@ -268,12 +282,12 @@ useEffect(() => {
     });
 
     socketRef.current.on('opponent-disconnected', () => {
-      toast.error('❌ Đối thủ ngắt kết nối!');
+      toast.error(t[langRef.current]?.errOpponentDisconnect);
       setTimeout(() => location.reload(), 2000);
     });
 
     socketRef.current.on('join-failed', (data) => {
-      toast.error('❌ Không tìm thấy phòng! ' + (data.error || ''));
+      toast.error((t[langRef.current]?.errRoomNotFound || '') + (data.error || ''));
     });
 
     loadTopRecords();
@@ -520,21 +534,19 @@ useEffect(() => {
       scoreToSend = gs.score;
     } else {
       // --- FORMAT PVP STRING ĐỂ TỔNG HỢP 1 RANK DUY NHẤT ---
-      scoreToSend = gs.score; // Vẫn lưu điểm của chính mình để tính rank cá nhân
+      scoreToSend = gs.score; 
       
       const p1Name = gs.myName || 'Player';
       const p1Score = gs.score;
       const p2Name = gs.remoteName || 'Opponent';
       const p2Score = gs.remoteScore;
       
-      // Thuật toán: Ai điểm cao hơn thì đứng trước. 
-      // Đảm bảo 2 máy lưu CÙNG 1 CHUỖI giống hệt nhau để lọc trùng!
+      // Giữ nguyên logic format chuỗi để đảm bảo đồng bộ dữ liệu trên Firebase
       if (p1Score > p2Score) {
         name = `${p1Name} (${p1Score}) ⚔️ ${p2Name} (${p2Score})`;
       } else if (p2Score > p1Score) {
         name = `${p2Name} (${p2Score}) ⚔️ ${p1Name} (${p1Score})`;
       } else {
-        // Nếu hòa nhau, xếp theo thứ tự bảng chữ cái ABC để không bị lệch chuỗi
         if (p1Name.localeCompare(p2Name) <= 0) {
           name = `${p1Name} (${p1Score}) ⚔️ ${p2Name} (${p2Score})`;
         } else {
@@ -543,7 +555,8 @@ useEffect(() => {
       }
     }
 
-    if (!isAuto) toast.loading('💾 Đang kiểm tra và lưu kỷ lục...', { id: 'saveScore' });
+    // Sử dụng t[lang] cho các thông báo Toast
+    if (!isAuto) toast.loading(t[lang]?.savingScore || '💾 Đang kiểm tra và lưu kỷ lục...', { id: 'saveScore' });
 
     try {
       const docId = `${user.uid}_${mode}`;
@@ -553,7 +566,9 @@ useEffect(() => {
       if (snap.exists() && snap.data().score >= scoreToSend) {
         if (!isAuto) {
           toast.dismiss('saveScore');
-          toast.error(`❌ Điểm ván này (${scoreToSend}) chưa vượt qua Kỷ lục cũ (${snap.data().score}) của bạn!`);
+          // Format thông báo lỗi điểm thấp hơn kỷ lục cũ
+          const msg = t[lang]?.errScoreNotBeaten || `❌ Điểm ván này (${scoreToSend}) chưa vượt qua Kỷ lục cũ (${snap.data().score}) của bạn!`;
+          toast.error(msg.replace('(${scoreToSend})', `(${scoreToSend})`).replace('(${snap.data().score})', `(${snap.data().score})`));
         }
         return false; 
       }
@@ -568,14 +583,14 @@ useEffect(() => {
 
       if (!isAuto) {
         toast.dismiss('saveScore');
-        toast.success('✅ Đã cập nhật kỷ lục mới!');
+        toast.success(t[lang]?.successNewRecord || '✅ Đã cập nhật kỷ lục mới!');
         setTimeout(() => openLeaderboard(mode), 1000);
       }
       return true;
     } catch (err) {
       if (!isAuto) {
         toast.dismiss('saveScore');
-        toast.error('❌ Lỗi Firebase: ' + err.message);
+        toast.error((t[lang]?.errFirebase || '❌ Lỗi Firebase: ') + err.message);
       }
       console.error("Firebase Error:", err);
       return false;
@@ -670,11 +685,13 @@ useEffect(() => {
                 : `${name} (${topData.score})`;
           setTopRecords(prev => ({ ...prev, [key]: displayText }));
         } else {
-          setTopRecords(prev => ({ ...prev, [key]: 'Chưa có' }));
+          // Thay 'Chưa có' bằng key trong từ điển
+          setTopRecords(prev => ({ ...prev, [key]: t[lang]?.topNone || 'Chưa có' }));
         }
       } catch (error) {
         console.error("Top records error:", error);
-        setTopRecords(prev => ({ ...prev, [key]: 'Lỗi tải' }));
+        // Thay 'Lỗi tải' bằng key trong từ điển
+        setTopRecords(prev => ({ ...prev, [key]: t[lang]?.topError || 'Lỗi tải' }));
       }
     };
 
@@ -683,36 +700,45 @@ useEffect(() => {
   };
  
   const createRoom = (playerName) => {
-    if (!currentUser) return toast.error('Vui lòng đăng nhập!');
+    // 1. Kiểm tra đăng nhập
+    if (!currentUser) return toast.error(t[lang]?.reqLogin || 'Vui lòng đăng nhập!');
+    // 2. Kiểm tra tên người chơi
     if (!playerName || playerName.length < 2) {
-      toast.error('Vui lòng nhập tên (ít nhất 2 ký tự)!');
+      toast.error(t[lang]?.reqName || 'Vui lòng nhập tên (ít nhất 2 ký tự)!');
       return;
     }
+    // Cập nhật thông tin vào Ref và Storage
     gsRef.current.myName = playerName;
     secureStorage.setItem('astro_custom_name', playerName);
     gsRef.current.isHost = true;
     setLobbyState('wait');
-    toast.success('✅ Phòng đã tạo thành công!');
+    // 3. Thông báo tạo phòng thành công
+    toast.success(t[lang]?.roomCreated || '✅ Phòng đã tạo thành công!');
+    // Emit socket với settings hiện tại
     socketRef.current.emit('create-room', {
       name: playerName,
       settings: gsRef.current.userSettings
     });
   };
-
   const joinRoom = (playerName, roomCode) => {
-    if (!currentUser) return toast.error('Vui lòng đăng nhập!');
+    // 1. Kiểm tra đăng nhập
+    if (!currentUser) return toast.error(t[lang]?.loginRequired || 'Vui lòng đăng nhập!');
+    // 2. Kiểm tra tên người chơi
     if (!playerName || playerName.length < 2) {
-      toast.error('Vui lòng nhập tên (ít nhất 2 ký tự)!');
+      toast.error(t[lang]?.nameTooShort || 'Vui lòng nhập tên (ít nhất 2 ký tự)!');
       return;
     }
+    // 3. Kiểm tra mã phòng
     if (!roomCode) {
-      toast.error('Vui lòng nhập mã!');
+      toast.error(t[lang]?.enterRoomCode || 'Vui lòng nhập mã!');
       return;
     }
-
+    // Cập nhật thông tin vào Ref và Storage
     gsRef.current.myName = playerName;
     secureStorage.setItem('astro_custom_name', playerName);
-    toast.loading('🔗 Đang kết nối...');
+    // 4. Thông báo đang kết nối
+    toast.loading(t[lang]?.connecting || '🔗 Đang kết nối...');
+    // Emit socket
     socketRef.current.emit('join-room', {
       roomCode: roomCode,
       playerName: playerName
@@ -841,7 +867,8 @@ useEffect(() => {
 
  const startGame = (mode) => {
     if (!gsRef.current.isVIP && gsRef.current.lives <= 0) {
-      toast.error('❌ Bạn đã hết mạng! Hãy chờ hồi phục hoặc Xem quảng cáo.');
+      // Sử dụng t[lang] để hiển thị đúng ngôn ngữ người dùng đã chọn
+      toast.error(t[lang]?.outOfLives || '❌ Bạn đã hết mạng! Hãy chờ hồi phục hoặc Xem quảng cáo.');
       return;
     }
     if (animationRef.current) {
@@ -1278,16 +1305,18 @@ useEffect(() => {
 
     if (gs.isGameOver && gs.gameMode === 'online') {
       if (!gs.remoteDead) {
+        // Thay thế đoạn vẽ chữ tĩnh thành đoạn này:
+        const textStr = t[langRef.current] || t['vi'];
         gs.ctx.fillStyle = 'rgba(0,0,0,0.6)';
         gs.ctx.fillRect(0, 0, gs.canvas.width, gs.canvas.height);
         gs.ctx.fillStyle = '#FFD700';
         gs.ctx.font = "30px 'VT323', monospace";
         gs.ctx.textAlign = 'center';
-        gs.ctx.fillText('BẠN ĐÃ CHẾT!', gs.canvas.width / 2, gs.canvas.height / 2 - 40);
+        gs.ctx.fillText(textStr.canvasYouDied, gs.canvas.width / 2, gs.canvas.height / 2 - 40);
         gs.ctx.fillStyle = '#fff';
         gs.ctx.font = "24px 'VT323', monospace";
-        gs.ctx.fillText('Đang xem ' + gs.remoteName + ' chơi...', gs.canvas.width / 2, gs.canvas.height / 2);
-        gs.ctx.fillText('Điểm đối thủ: ' + gs.remoteScore, gs.canvas.width / 2, gs.canvas.height / 2 + 30);
+        gs.ctx.fillText(`${textStr.canvasSpectating} ${gs.remoteName} ${textStr.canvasPlaying}`, gs.canvas.width / 2, gs.canvas.height / 2);
+        gs.ctx.fillText(`${textStr.canvasOpponentScore} ${gs.remoteScore}`, gs.canvas.width / 2, gs.canvas.height / 2 + 30);
       }
     } else {
       gs.frames++;
@@ -1439,8 +1468,7 @@ useEffect(() => {
     try {
       if (Capacitor.isNativePlatform()) {
         // Đăng nhập Native cho App APK
-        toast.loading('Đang mở Google...', { id: 'nativeLogin' });
-      
+        toast.loading(t[lang]?.loginOpening, { id: 'nativeLogin' });
         // BẮT BUỘC PHẢI THÊM ĐOẠN NÀY ĐỂ ÉP KHỞI TẠO Ở NATIVE
         GoogleAuth.initialize({
           clientId: '271365354200-divjlei917agdhao9na226dnhemtiq2b.apps.googleusercontent.com',
@@ -1450,15 +1478,15 @@ useEffect(() => {
         const googleUser = await GoogleAuth.signIn();
         const credential = GoogleAuthProvider.credential(googleUser.authentication.idToken);
         await signInWithCredential(auth, credential);
-        toast.success('Đăng nhập App thành công!');
+        toast.success(t[lang]?.loginAppSuccess);
       } else {
         // Đăng nhập Popup cho Web
         await signInWithPopup(auth, googleProvider);
-        toast.success('Đăng nhập Web thành công!');
+        toast.success(t[lang]?.loginWebSuccess);
       }
     } catch (error) {
       console.error("Login Error:", error);
-      toast.error('Đăng nhập thất bại!');
+      toast.error(t[lang]?.loginFail);
     }
   };
   const logout = async () => {
@@ -1477,7 +1505,7 @@ useEffect(() => {
   
       setCurrentUser(null);
       setScreen('menu');
-      toast.success('Đã thoát!');
+      toast.success(t[lang]?.logoutSuccess);
     } catch (e) { console.log(e); }
   };
 
@@ -1486,6 +1514,14 @@ useEffect(() => {
     const userRef = doc(db, "users", user.uid);
     
     try {
+      // --- KHỞI TẠO REVENUECAT (CHỈ CHẠY TRÊN NATIVE APP) ---
+      if (Capacitor.isNativePlatform()) {
+        // Cấu hình SDK với API Key của Google Play (Sẽ lấy trên bảng điều khiển RevenueCat)
+        await Purchases.configure({ 
+            apiKey: "goog_KEY_CUA_BAN_SE_DIEN_SAU", 
+            appUserID: user.uid // Gắn chặt VIP với tài khoản Firebase
+        });
+      }
       const snap = await getDoc(userRef);
       // Sử dụng Session ID cố định lưu trong máy
       let savedId = secureStorage.getItem('astro_session_id');
@@ -1505,7 +1541,7 @@ useEffect(() => {
         const isQuickReload = (now - lastUpdate) < 15000; 
 
         if (data.isOnline === true && !isSameDevice && !isQuickReload) {
-          toast.error("⚠️ Tài khoản đang được chơi ở thiết bị khác!");
+          toast.error(t[langRef.current]?.errMultiDevice);
           await signOut(auth);
           setCurrentUser(null);
           setScreen('menu');
@@ -1659,11 +1695,11 @@ useEffect(() => {
         if (rewardType === 'coin') {
           gsRef.current.coins += 50; 
           setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins }));
-          toast.success('🎁 Phần thưởng: +50 XU!');
+          toast.success(t[langRef.current]?.rewardCoin);
         } else if (rewardType === 'life') {
           gsRef.current.lives += 1;  
           setUIUpdates(prev => ({ ...prev, lives: gsRef.current.lives }));
-          toast.success('❤️ Phần thưởng: +1 MẠNG!');
+          toast.success(t[langRef.current]?.rewardLife);
         }
         saveUserProfile(); 
         pendingRewardRef.current = null;
@@ -1693,16 +1729,16 @@ useEffect(() => {
 
   const watchAd = async (rewardType) => {
     if (!currentUser) {
-      toast.error("Vui lòng đăng nhập để nhận thưởng!");
+      toast.error(t[langRef.current]?.errNotLoggedIn);
       return;
     }
     if (rewardType === 'life' && gsRef.current.lives >= 10) {
-      toast.error('Túi mạng đã đầy 10/10. Bạn không cần xem thêm!');
+      toast.error(t[langRef.current]?.errLifeFullAd);
       return; 
     }
     // THÊM KIỂM TRA GIỚI HẠN NHẬN XU (TỐI ĐA 5 LẦN/NGÀY)
     if (rewardType === 'coin' && gsRef.current.dailyCoinCount >= 5) {
-      toast.error('Hôm nay bạn đã nhận tối đa 5 lần rồi. Hãy quay lại vào ngày mai nhé!');
+      toast.error(t[langRef.current]?.errDailyCoinLimit);
       return;
     }
     if (isWatchingAd) return;
@@ -1720,7 +1756,7 @@ useEffect(() => {
     }
 
     // NẾU LÀ NATIVE (ANDROID/IOS) -> CHẠY ADMOB THẬT
-    const loadingToast = toast.loading('Đang kết nối AdMob...');
+    const loadingToast = toast.loading(t[langRef.current]?.loadingAd);
     try {
       //const adId = 'ca-app-pub-3940256099942544/5224354917';
       const adId = 'ca-app-pub-8735238443425732/7696488422'; // ID quảng cáo thật đã tạo trên AdMob
@@ -1748,11 +1784,11 @@ useEffect(() => {
       gsRef.current.coins += 50; 
       gsRef.current.dailyCoinCount += 1;
       setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins }));
-      toast.success('🎁 Phần thưởng: +50 XU!');
+      toast.success(t[langRef.current]?.rewardCoin);
     } else if (rewardType === 'life') {
       gsRef.current.lives += 1;  
       setUIUpdates(prev => ({ ...prev, lives: gsRef.current.lives }));
-      toast.success('❤️ Phần thưởng: +1 MẠNG!');
+      toast.success(t[langRef.current]?.rewardLife);
     }
     
     if (currentUser) saveUserProfile(); 
@@ -1764,7 +1800,7 @@ useEffect(() => {
     setWebAd({ isPlaying: false, type: null });
     setIsWatchingAd(false);
     pendingRewardRef.current = null;
-    toast.error('❌ Bạn chưa xem hết quảng cáo nên không nhận được thưởng!');
+    toast.error(t[langRef.current]?.errAdIncomplete);
   };
   // ==========================================
   // BỘ ĐẾM NGƯỢC THỜI GIAN HỒI MẠNG (CHẠY NGẦM & OFFLINE)
@@ -1828,9 +1864,9 @@ useEffect(() => {
 
         setUIUpdates(prev => ({ ...prev, lives: gs.lives }));
         if(gained >= 10){
-          toast.success(`❤️ Đã hồi phục toàn bộ mạng!`);
+          toast.success(t[langRef.current]?.regenAllLives);
         }else{
-          toast.success(`❤️ Đã hồi phục ${gained} mạng!`);
+          toast.success(`${t[langRef.current]?.regenSomeLives} ${gained} ${t[langRef.current]?.regenSomeLivesEnd}`);
         }
         
       } else {
@@ -1885,6 +1921,8 @@ useEffect(() => {
           logout={logout} 
           openShop={openShop}
           openLeaderboard={openLeaderboard}
+          lang={lang}
+          toggleLanguage={toggleLanguage}
         />
       )}
 
@@ -1897,6 +1935,7 @@ useEffect(() => {
           createRoom={createRoom} 
           joinRoom={joinRoom} 
           setScreen={setScreen} 
+          lang={lang}
         />
       )}
 
@@ -1912,6 +1951,7 @@ useEffect(() => {
           saveUserProfile={saveUserProfile} 
           watchAd={watchAd} 
           isWatchingAd={isWatchingAd} 
+          lang={lang}
         />
       )}
 
@@ -1923,6 +1963,7 @@ useEffect(() => {
           openLeaderboard={openLeaderboard} 
           setScreen={setScreen} 
           userRankData={userRankData}
+          lang={lang}
         />
       )}
 
@@ -1934,6 +1975,7 @@ useEffect(() => {
           setScreen={setScreen} 
           submitScore={submitScore} 
           loginWithGoogle={loginWithGoogle} 
+          lang={lang}
         />
       )}
 
@@ -1945,6 +1987,7 @@ useEffect(() => {
           flipMute={flipMute} 
           togglePause={togglePause} 
           countdown={countdown}
+          lang={lang}
           //frameCount={frameCount}
         />
       )}
@@ -1965,7 +2008,7 @@ useEffect(() => {
               fontFamily: "'VT323', monospace"
             }}
           >
-            ✖ Đóng
+            {t[lang]?.closeBtn}
           </button>
 
           <p style={{ 
@@ -1976,7 +2019,7 @@ useEffect(() => {
             textAlign: 'center', /* Ép chữ luôn nằm giữa dù bị rớt dòng */
             padding: '0 15px'    /* Tránh chữ dính sát lề điện thoại */
           }}>
-            Đang phát video tài trợ...<br/>(Xem hết để nhận thưởng)
+            {t[lang]?.adPlaying}<br/>({t[lang]?.adCompleteToEarn})
           </p>
 
           {/* Trình phát Video Mẫu (10 giây) */}
@@ -1987,7 +2030,7 @@ useEffect(() => {
             onEnded={handleWebAdComplete} 
             style={{ width: '90%', maxWidth: '700px', borderRadius: '12px', border: '4px solid #333', boxShadow: '0 0 20px rgba(0,255,255,0.3)' }}
           >
-            Trình duyệt của bạn không hỗ trợ video.
+            {t[lang]?.videoNotSupported || "Trình duyệt của bạn không hỗ trợ video."}
           </video>
         </div>
       )}

@@ -1,6 +1,10 @@
 import React from 'react';
+import { t } from '../utils/translations';
 
-export default function GameHUD({ gsRef, uiUpdates, levelUpEffect, flipMute, togglePause, countdown }) {
+export default function GameHUD({ gsRef, uiUpdates, levelUpEffect, flipMute, togglePause, countdown, lang }) {
+  // Lấy bộ từ vựng theo ngôn ngữ hiện tại
+  const text = t[lang] || t['vi']; // Dự phòng nếu lang bị rỗng
+
   return (
     <>
       {gsRef.current.gameMode === 'single' && (
@@ -20,15 +24,15 @@ export default function GameHUD({ gsRef, uiUpdates, levelUpEffect, flipMute, tog
       {gsRef.current.gameMode === 'online' && (
         <div className="online-hud" style={{ position: 'absolute', top: '10px', left: '10px', background: 'rgba(0, 0, 0, 0.6)', padding: '10px', borderRadius: '8px', fontFamily: "'VT323', monospace", zIndex: 1000, textAlign: 'left', border: '1px solid #444', pointerEvents: 'auto' }}>
           <div style={{ fontSize: '24px', color: '#FFD700', textShadow: '2px 2px 0 #000', marginBottom: '5px' }}>
-            <span style={{ fontSize: '0.7em', opacity: 0.8, marginRight: '5px' }}>BẠN</span>: <span id="pvpScoreYou">{gsRef.current.score}</span>
+            <span style={{ fontSize: '0.7em', opacity: 0.8, marginRight: '5px' }}>{text.you}</span>: <span id="pvpScoreYou">{gsRef.current.score}</span>
           </div>
           <div style={{ fontSize: '24px', color: '#00FFFF', textShadow: '2px 2px 0 #000', marginBottom: '5px' }}>
-            <span style={{ fontSize: '0.7em', opacity: 0.8, marginRight: '5px' }}>ĐỐI THỦ</span>: <span id="pvpScoreOpp">{gsRef.current.remoteScore}</span>
+            <span style={{ fontSize: '0.7em', opacity: 0.8, marginRight: '5px' }}>{text.opponent}</span>: <span id="pvpScoreOpp">{gsRef.current.remoteScore}</span>
           </div>
           <div style={{ fontSize: '20px', color: '#FFD700', textShadow: '2px 2px 0 #000', marginBottom: '5px' }}>
-            <span style={{ fontSize: '0.7em', opacity: 0.8, marginRight: '5px' }}>XU</span>: <span className="pixel-icon icon-coin"></span> <span id="pvpCoinVal">{uiUpdates.coins || 0}</span>
+            <span style={{ fontSize: '0.7em', opacity: 0.8, marginRight: '5px' }}>{text.coinsHUD}</span>: <span className="pixel-icon icon-coin"></span> <span id="pvpCoinVal">{uiUpdates.coins || 0}</span>
           </div>
-          <div style={{ color: '#2ed573', fontSize: '18px' }}>Kết nối OK</div>
+          <div style={{ color: '#2ed573', fontSize: '18px' }}>{text.connectionOk}</div>
         </div>
       )}
 
@@ -47,12 +51,12 @@ export default function GameHUD({ gsRef, uiUpdates, levelUpEffect, flipMute, tog
           </div>
           <div style={{ position: 'absolute', top: '65%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div style={{ fontSize: '80px', animation: 'tapHand 0.8s ease-in-out infinite', marginBottom: '10px' }}>👆</div>
-            <div style={{ fontSize: '35px', color: '#fff', fontWeight: 'bold', textShadow: '2px 2px 4px #000, 0 0 10px #0abde3', fontFamily: "'VT323', monospace", animation: 'pulseText 1s infinite' }}>TAP TO JUMP</div>
+            <div style={{ fontSize: '35px', color: '#fff', fontWeight: 'bold', textShadow: '2px 2px 4px #000, 0 0 10px #0abde3', fontFamily: "'VT323', monospace", animation: 'pulseText 1s infinite' }}>{text.tapToJump}</div>
           </div>
         </div>
       )}
 
-      {levelUpEffect && <div id="levelUpMsg">LEVEL UP!</div>}
+      {levelUpEffect && <div id="levelUpMsg">{text.levelUp}</div>}
     </>
   );
 }
