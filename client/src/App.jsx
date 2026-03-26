@@ -1518,7 +1518,7 @@ useEffect(() => {
       if (Capacitor.isNativePlatform()) {
         // Cấu hình SDK với API Key của Google Play (Sẽ lấy trên bảng điều khiển RevenueCat)
         await Purchases.configure({ 
-            apiKey: "goog_KEY_CUA_BAN_SE_DIEN_SAU", 
+            apiKey: "goog_CbZGtaRbTZyJqImOJePIWqxjpXr", 
             appUserID: user.uid // Gắn chặt VIP với tài khoản Firebase
         });
       }

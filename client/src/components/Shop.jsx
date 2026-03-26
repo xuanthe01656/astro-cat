@@ -49,7 +49,7 @@ export default function Shop({ currentUser, uiUpdates, setUIUpdates, gsRef, setS
 
     const isNative = Capacitor.isNativePlatform();
     
-    // NẾU LÀ WEB: Báo lỗi và hiện nút tải App
+    // NẾU LÀ WEB: Báo lỗi và hiện nút tải App (Giữ nguyên của bạn)
     if (!isNative) {
       toast((t) => (
         <div style={{ textAlign: 'center', padding: '5px' }}>
@@ -73,13 +73,17 @@ export default function Shop({ currentUser, uiUpdates, setUIUpdates, gsRef, setS
       ), { duration: 6000, style: { background: '#1a1a2e', border: '2px solid #2ed573' } });
       return; 
     }
+    
     const loadingToast = toast.loading(text.connectingPlay);
     
     try {
       const offerings = await Purchases.getOfferings();
-      if (offerings.current && offerings.current.availablePackages.length > 0) {
-        const vipPackage = offerings.current.availablePackages[0];
+      
+      // SỬA Ở ĐÂY: Gọi đích danh gói lifetime thay vì availablePackages[0]
+      if (offerings.current && offerings.current.lifetime) {
+        const vipPackage = offerings.current.lifetime;
         toast.dismiss(loadingToast);
+        
         const { customerInfo } = await Purchases.purchasePackage({ aPackage: vipPackage });
 
         if (typeof customerInfo.entitlements.active['vip_access'] !== "undefined") {
@@ -101,6 +105,29 @@ export default function Shop({ currentUser, uiUpdates, setUIUpdates, gsRef, setS
         toast.error(`${text.errPayment} ${e.message}`);
         console.error("Purchase Error:", e);
       }
+    }
+  };
+
+  // THÊM HÀM KHÔI PHỤC NGAY BÊN DƯỚI
+  const handleRestorePurchases = async () => {
+    const loadingToast = toast.loading(text.connectingPlay || 'Đang khôi phục...');
+    try {
+      const customerInfo = await Purchases.restorePurchases();
+      if (typeof customerInfo.entitlements.active['vip_access'] !== "undefined") {
+        gsRef.current.isVIP = true;
+        gsRef.current.lives = '∞'; 
+        gsRef.current.livesUpdatedAt = null;
+        setUIUpdates(prev => ({ ...prev, isVIP: true, lives: '∞', nextLifeTime: null }));
+        await saveUserProfile(); 
+        toast.dismiss(loadingToast);
+        toast.success(text.vipSuccess || 'Khôi phục thành công!');
+      } else {
+        toast.dismiss(loadingToast);
+        toast.error(text.vipNotReady || 'Không tìm thấy gói VIP nào.');
+      }
+    } catch (e) {
+      toast.dismiss(loadingToast);
+      toast.error(`${text.errPayment || 'Lỗi:'} ${e.message}`);
     }
   };
 
@@ -142,21 +169,34 @@ export default function Shop({ currentUser, uiUpdates, setUIUpdates, gsRef, setS
             </div>
           </div>
 
+          {/* === KHU VỰC MUA VIP VÀ KHÔI PHỤC === */}
           <div style={{ width: '100%', maxWidth: '600px', marginBottom: '20px' }}>
             {!uiUpdates.isVIP ? (
-              <div onClick={handleBuyVIP} className="shop-item" style={{
-                background: 'linear-gradient(45deg, #FFD700, #ff9f43)',
-                border: '3px solid #fff', borderRadius: '15px', padding: '15px',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                cursor: 'pointer', boxShadow: '0 0 20px rgba(255, 215, 0, 0.6)'
-              }}>
-                <div style={{ textAlign: 'left', fontFamily: "'VT323', monospace" }}>
-                  <div style={{ fontSize: '28px', color: '#000', fontWeight: 'bold', textShadow: '1px 1px 0 #fff' }}>{text.vipTitle}</div>
-                  <div style={{ fontSize: '18px', color: '#222', marginTop: '5px', fontWeight: 'bold', textShadow: 'none' }}>
-                    {text.vipDesc1}<br/>{text.vipDesc2}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div onClick={handleBuyVIP} className="shop-item" style={{
+                  background: 'linear-gradient(45deg, #FFD700, #ff9f43)',
+                  border: '3px solid #fff', borderRadius: '15px', padding: '15px',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  cursor: 'pointer', boxShadow: '0 0 20px rgba(255, 215, 0, 0.6)'
+                }}>
+                  <div style={{ textAlign: 'left', fontFamily: "'VT323', monospace" }}>
+                    <div style={{ fontSize: '28px', color: '#000', fontWeight: 'bold', textShadow: '1px 1px 0 #fff' }}>{text.vipTitle}</div>
+                    <div style={{ fontSize: '18px', color: '#222', marginTop: '5px', fontWeight: 'bold', textShadow: 'none' }}>
+                      {text.vipDesc1}<br/>{text.vipDesc2}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '20px', background: '#000', color: '#FFD700', padding: '10px 15px', borderRadius: '10px', fontWeight: 'bold', fontFamily: "'VT323', monospace", border: '2px solid #FFD700' }} dangerouslySetInnerHTML={{ __html: text.vipBtnTest }}>
                   </div>
                 </div>
-                <div style={{ fontSize: '20px', background: '#000', color: '#FFD700', padding: '10px 15px', borderRadius: '10px', fontWeight: 'bold', fontFamily: "'VT323', monospace", border: '2px solid #FFD700' }} dangerouslySetInnerHTML={{ __html: text.vipBtnTest }}>
+
+                {/* THÊM NÚT KHÔI PHỤC VÀO ĐÂY */}
+                <div style={{ textAlign: 'center' }}>
+                  <button 
+                    onClick={handleRestorePurchases} 
+                    style={{ background: 'transparent', color: '#ccc', border: 'none', textDecoration: 'underline', cursor: 'pointer', fontFamily: "'VT323', monospace", fontSize: '16px' }}
+                  >
+                    Khôi phục giao dịch (Restore Purchases)
+                  </button>
                 </div>
               </div>
             ) : (
