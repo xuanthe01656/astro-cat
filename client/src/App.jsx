@@ -476,7 +476,8 @@ useEffect(() => {
         setUIUpdates(prev => ({
           ...prev,
           finalScore: gs.score,
-          bestScore: gs.bestScore
+          bestScore: gs.bestScore,
+          coins: gs.coins
         }));
         setScreen('gameover');
       }, 800);
@@ -507,7 +508,8 @@ useEffect(() => {
       finalScore: gs.score,
       remoteScore: gs.remoteScore,
       gameResult: result,
-      remoteName: gs.remoteName
+      remoteName: gs.remoteName,
+      coins: gs.coins
     }));
     setScreen('gameover');
     submitScore('pvp', false);
@@ -1978,6 +1980,7 @@ useEffect(() => {
           lang={lang}
           setLobbyState={setLobbyState}
           saveUserProfile={saveUserProfile}
+          startGame={startGame}
         />
       )}
 

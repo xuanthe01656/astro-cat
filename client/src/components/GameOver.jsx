@@ -1,14 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { t } from '../utils/translations'; // 1. Nhúng từ điển
 
-export default function GameOver({ gsRef, uiUpdates, currentUser, setScreen, submitScore, loginWithGoogle, lang, setLobbyState}) {
+export default function GameOver({ gsRef, uiUpdates, currentUser, setScreen, submitScore, loginWithGoogle, lang, setLobbyState, startGame}) {
   // 2. Lấy bộ từ vựng theo ngôn ngữ hiện tại
   const text = t[lang] || t['vi'];
 
   // Quản lý input tên và trạng thái đã lưu kỷ lục thành công hay chưa
-  const [playerName, setPlayerName] = useState(localStorage.getItem('astro_custom_name') || currentUser?.displayName || '');
+  const [playerName, setPlayerName] = useState(() => {
+    return currentUser?.displayName || localStorage.getItem('astro_custom_name') || '';
+  });
   const [isSubmitted, setIsSubmitted] = useState(false);
-
+  useEffect(() => {
+    if (currentUser?.displayName) {
+      setPlayerName(currentUser.displayName);
+      localStorage.setItem('astro_custom_name', currentUser.displayName);
+    }
+  }, [currentUser]);
   const handleSaveScore = async () => {
     const success = await submitScore('single', false, playerName.trim());
     if (success) {
@@ -78,18 +85,22 @@ export default function GameOver({ gsRef, uiUpdates, currentUser, setScreen, sub
         <div style={{ display: 'flex', gap: '15px', width: '100%', justifyContent: 'center', marginTop: '10px' }}>
           
           <button className="btn btn-red" onClick={() => { 
-            setScreen('menu'); 
-            gsRef.current.gameMode = 'single'; 
-            setLobbyState('main'); 
-            gsRef.current.roomCode = null; 
+            if (gsRef.current.gameMode === 'single') {
+              startGame('single'); 
+            } else {
+              setScreen('menu');
+              setLobbyState('main');
+            }
           }} style={{ flex: 1, fontSize: '22px' }}>
             {text.playAgainBtn}
           </button>
 
           <button className="btn btn-blue" onClick={() => { 
-            setScreen('menu'); 
-            setLobbyState('main'); 
+            gsRef.current.isPlaying = false;
+            gsRef.current.gameMode = 'single'; 
             gsRef.current.roomCode = null; 
+            setLobbyState('main'); 
+            setScreen('menu'); 
           }} style={{ flex: 1, fontSize: '22px' }}>
             {text.menuBtn}
           </button>

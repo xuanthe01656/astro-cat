@@ -112,18 +112,27 @@ export default function Shop({ currentUser, uiUpdates, setUIUpdates, gsRef, setS
   const handleRestorePurchases = async () => {
     const loadingToast = toast.loading(text.connectingPlay || 'Đang khôi phục...');
     try {
-      const customerInfo = await Purchases.restorePurchases();
-      if (typeof customerInfo.entitlements.active['vip_access'] !== "undefined") {
+      const result = await Purchases.restorePurchases();
+      
+      // Hỗ trợ cả 2 chuẩn dữ liệu của RevenueCat (Có hoặc không bọc trong customerInfo)
+      const info = result.customerInfo ? result.customerInfo : result;
+
+      // Dùng dấu ?. để chống sập App nếu entitlements bị rỗng/thiếu
+      if (info?.entitlements?.active?.['vip_access']) {
+        
         gsRef.current.isVIP = true;
         gsRef.current.lives = '∞'; 
         gsRef.current.livesUpdatedAt = null;
         setUIUpdates(prev => ({ ...prev, isVIP: true, lives: '∞', nextLifeTime: null }));
+        
         await saveUserProfile(); 
         toast.dismiss(loadingToast);
         toast.success(text.vipSuccess || 'Khôi phục thành công!');
+        
       } else {
         toast.dismiss(loadingToast);
         toast.error(text.vipNotReady || 'Không tìm thấy gói VIP nào.');
+        console.log("Dữ liệu trả về từ Google:", JSON.stringify(result)); // In ra để dễ dò lỗi nếu cần
       }
     } catch (e) {
       toast.dismiss(loadingToast);
