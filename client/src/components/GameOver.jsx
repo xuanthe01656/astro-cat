@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { t } from '../utils/translations'; // 1. Nhúng từ điển
 
-export default function GameOver({ gsRef, uiUpdates, currentUser, setScreen, submitScore, loginWithGoogle, lang }) {
+export default function GameOver({ gsRef, uiUpdates, currentUser, setScreen, submitScore, loginWithGoogle, lang, setLobbyState}) {
   // 2. Lấy bộ từ vựng theo ngôn ngữ hiện tại
   const text = t[lang] || t['vi'];
 
@@ -12,7 +12,7 @@ export default function GameOver({ gsRef, uiUpdates, currentUser, setScreen, sub
   const handleSaveScore = async () => {
     const success = await submitScore('single', false, playerName.trim());
     if (success) {
-      setIsSubmitted(true); // Thành công thì React tự động ẩn form và hiện chữ màu xanh
+      setIsSubmitted(true);
     }
   };
 
@@ -76,8 +76,24 @@ export default function GameOver({ gsRef, uiUpdates, currentUser, setScreen, sub
         
         {/* CÁC NÚT ĐIỀU HƯỚNG */}
         <div style={{ display: 'flex', gap: '15px', width: '100%', justifyContent: 'center', marginTop: '10px' }}>
-          <button className="btn btn-red" onClick={() => { setScreen('menu'); gsRef.current.gameMode = 'single'; }} style={{ flex: 1, fontSize: '22px' }}>{text.playAgainBtn}</button>
-          <button className="btn btn-blue" onClick={() => location.reload()} style={{ flex: 1, fontSize: '22px' }}>{text.menuBtn}</button>
+          
+          <button className="btn btn-red" onClick={() => { 
+            setScreen('menu'); 
+            gsRef.current.gameMode = 'single'; 
+            setLobbyState('main'); 
+            gsRef.current.roomCode = null; 
+          }} style={{ flex: 1, fontSize: '22px' }}>
+            {text.playAgainBtn}
+          </button>
+
+          <button className="btn btn-blue" onClick={() => { 
+            setScreen('menu'); 
+            setLobbyState('main'); 
+            gsRef.current.roomCode = null; 
+          }} style={{ flex: 1, fontSize: '22px' }}>
+            {text.menuBtn}
+          </button>
+
         </div>
       </div>
     </div>

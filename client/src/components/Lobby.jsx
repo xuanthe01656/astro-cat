@@ -1,29 +1,34 @@
-import React, { useState } from 'react';
-import { t } from '../utils/translations'; // 1. Nhúng từ điển
-
+import React, { useState, useEffect } from 'react';
+import { t } from '../utils/translations';
 export default function Lobby({ lobbyState, setLobbyState, currentUser, gsRef, createRoom, joinRoom, setScreen, lang }) {
-  // 2. Lấy bộ từ vựng theo ngôn ngữ hiện tại
   const text = t[lang] || t['vi'];
 
-  const [playerName, setPlayerName] = useState(localStorage.getItem('astro_custom_name') || currentUser?.displayName || '');
+  const [playerName, setPlayerName] = useState(() => {
+    return currentUser?.displayName || localStorage.getItem('astro_custom_name') || '';
+  });
   const [roomCode, setRoomCode] = useState('');
+  useEffect(() => {
+    if (currentUser?.displayName) {
+      setPlayerName(currentUser.displayName);
+      localStorage.setItem('astro_custom_name', currentUser.displayName);
+    }
+  }, [currentUser]);
 
   return (
     <div className="ui-layer" style={{ background: 'rgba(0, 8, 20, 0.95)' }}>
       
-      {/* BẢNG CHÍNH CỦA LOBBY */}
       <div className="lobby-panel" style={{ 
         width: '90%', maxWidth: '500px', background: '#0a192f', borderRadius: '20px', 
-        border: '3px solid #a55eea', padding: '20px', boxShadow: '0 0 15px rgba(165, 94, 234, 0.5)', 
+        border: '3px solid #a55eea', padding: 'clamp(10px, 4vw, 20px)', boxShadow: '0 0 15px rgba(165, 94, 234, 0.5)', 
         pointerEvents: 'auto', display: 'flex', flexDirection: 'column' 
       }}>
         
-        {/* CỤM HEADER: TIÊU ĐỀ + NÚT X */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '2px solid #1a365d', paddingBottom: '15px' }}>
-          <div style={{ fontSize: '40px', color: '#a55eea', fontWeight: 'bold', textShadow: '2px 2px 0 #000', fontFamily: "'VT323', monospace", margin: 0 }}>
+          <div style={{ fontSize: 'clamp(24px, 8vw, 40px)', color: '#a55eea', fontWeight: 'bold', textShadow: '2px 2px 0 #000', fontFamily: "'VT323', monospace", margin: 0 }}>
             {text.lobbyTitle}
           </div>
-          <button onClick={() => setScreen('menu')} style={{ 
+          <button onClick={() => {setScreen('menu');setLobbyState('main'); gsRef.current.roomCode = null;
+            }} style={{ 
             width: '40px', height: '40px', background: '#ff4757', color: '#fff', 
             border: '2px solid #fff', borderRadius: '50%', fontSize: '20px', fontWeight: 'bold', 
             cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', 
@@ -31,7 +36,6 @@ export default function Lobby({ lobbyState, setLobbyState, currentUser, gsRef, c
           }}>✕</button>
         </div>
 
-        {/* NỘI DUNG FORM NHẬP LỆNH */}
         <div style={{ width: '100%' }}>
           {lobbyState === 'main' && (
             <div id="lobbyMain">
@@ -41,7 +45,7 @@ export default function Lobby({ lobbyState, setLobbyState, currentUser, gsRef, c
                 maxLength="12" 
                 value={playerName} 
                 onChange={(e) => setPlayerName(e.target.value)}
-                style={{ width: '90%', padding: '10px', fontFamily: "'VT323', monospace", fontSize: '24px', textAlign: 'center', borderRadius: '8px', border: '2px solid #FFD700', background: 'rgba(0,0,0,0.5)', color: '#fff', outline: 'none', marginBottom: '15px' }} 
+                style={{ width: '90%', padding: '10px', fontFamily: "'VT323', monospace", fontSize: 'clamp(18px, 5vw, 24px)', textAlign: 'center', borderRadius: '8px', border: '2px solid #FFD700', background: 'rgba(0,0,0,0.5)', color: '#fff', outline: 'none', marginBottom: '15px' }} 
               />
               <button className="btn btn-blue" onClick={() => createRoom(playerName.trim())} style={{ width: '90%', marginBottom: '10px' }}>
                 {text.createNewRoom}
@@ -53,7 +57,7 @@ export default function Lobby({ lobbyState, setLobbyState, currentUser, gsRef, c
                   maxLength="4" 
                   value={roomCode}
                   onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                  style={{ flex: 1, padding: '10px', fontFamily: "'VT323', monospace", fontSize: '24px', textAlign: 'center', borderRadius: '8px', border: '2px solid #a55eea', background: 'rgba(0,0,0,0.5)', color: '#fff', outline: 'none', textTransform: 'uppercase', transition: '0.3s' }} 
+                  style={{ flex: 1, padding: '10px', fontFamily: "'VT323', monospace", fontSize: 'clamp(18px, 5vw, 24px)', textAlign: 'center', borderRadius: '8px', border: '2px solid #a55eea', background: 'rgba(0,0,0,0.5)', color: '#fff', outline: 'none', textTransform: 'uppercase', transition: '0.3s' }} 
                   onFocus={(e) => { e.target.style.borderColor = '#FFD700'; e.target.style.boxShadow = '0 0 15px rgba(255, 215, 0, 0.5)'; }} 
                   onBlur={(e) => { e.target.style.borderColor = '#a55eea'; e.target.style.boxShadow = 'none'; }} 
                 />
@@ -65,11 +69,11 @@ export default function Lobby({ lobbyState, setLobbyState, currentUser, gsRef, c
           )}
           {lobbyState === 'wait' && (
             <div id="lobbyWait">
-              <div className="subtitle" style={{ fontSize: '24px', marginBottom: '5px' }}>{text.yourRoomCode}</div>
-              <div className="room-code-box" style={{ fontSize: '70px', fontWeight: 'bold', color: '#55efc4', border: '4px dashed #55efc4', background: 'rgba(0, 0, 0, 0.5)', padding: '10px', margin: '15px 0', textShadow: '0 0 10px #55efc4', letterSpacing: '5px', userSelect: 'text' }}>
+              <div className="subtitle" style={{ fontSize: 'clamp(18px, 5vw, 24px)', marginBottom: '5px' }}>{text.yourRoomCode}</div>
+              <div className="room-code-box" style={{ fontSize: 'clamp(35px, 15vw, 70px)', fontWeight: 'bold', color: '#55efc4', border: '4px dashed #55efc4', background: 'rgba(0, 0, 0, 0.5)', padding: '10px', margin: '15px 0', textShadow: '0 0 10px #55efc4', letterSpacing: '5px', userSelect: 'text' }}>
                 {gsRef.current.roomCode || '----'}
               </div>
-              <div style={{ color: '#2ed573', fontSize: '18px', animation: 'blink 1.5s infinite' }}>{text.waitingForOpponent}</div>
+              <div style={{ color: '#2ed573', fontSize: 'clamp(14px, 4vw, 18px)', animation: 'blink 1.5s infinite' }}>{text.waitingForOpponent}</div>
             </div>
           )}
         </div>

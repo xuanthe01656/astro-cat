@@ -1976,6 +1976,8 @@ useEffect(() => {
           submitScore={submitScore} 
           loginWithGoogle={loginWithGoogle} 
           lang={lang}
+          setLobbyState={setLobbyState}
+          saveUserProfile={saveUserProfile}
         />
       )}
 
