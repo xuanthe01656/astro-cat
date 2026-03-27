@@ -38,51 +38,58 @@ export default function Shop({ currentUser, uiUpdates, setUIUpdates, gsRef, setS
     const loadingToast = toast.loading("Đang xử lý giao dịch an toàn...");
 
     try {
-      // Lấy Token định danh của Firebase Auth (Chìa khóa bảo mật)
-      const idToken = await currentUser.getIdToken(true);
-      
-      // Lấy URL Server (Tương tự như cách bạn setup Socket)
-      const API_URL = import.meta.env.VITE_SOCKET_URL || '';
+      // Xác thực người dùng qua Token
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      const uid = decodedToken.uid;
 
-      // Gọi API lên Server
-      const response = await fetch(`${API_URL}/api/shop/purchase`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          idToken: idToken,
-          type: type,
-          itemId: item.id
-        })
+      // Kiểm tra xem vật phẩm có tồn tại và lấy giá
+      const itemPrice = SHOP_PRICES[type]?.[itemId];
+      if (itemPrice === undefined) {
+        return res.status(400).json({ error: 'Vật phẩm không tồn tại' });
+      }
+
+      const userRef = db.collection('users').doc(uid);
+
+      // SỬA Ở ĐÂY: Hứng giá trị trả về từ Transaction vào biến `finalCoins`
+      const finalCoins = await db.runTransaction(async (transaction) => {
+        const doc = await transaction.get(userRef);
+        if (!doc.exists) throw new Error('Không tìm thấy dữ liệu người dùng');
+
+        const data = doc.data();
+        const currentCoins = data.coins || 0;
+        const inventory = data.inventory || { skins: ['classic'], bgs: ['deep'] };
+
+        // Kỉểm tra người chơi đã sở hữu chưa
+        const targetList = type === 'skin' ? inventory.skins : inventory.bgs;
+        if (targetList.includes(itemId)) {
+          throw new Error('Bạn đã sở hữu vật phẩm này rồi');
+        }
+
+        // Kiểm tra đủ tiền không
+        if (currentCoins < itemPrice) {
+          throw new Error('Không đủ Xu để mua');
+        }
+
+        // Tiến hành trừ tiền và thêm đồ
+        targetList.push(itemId);
+        const newCoins = currentCoins - itemPrice;
+
+        // Cập nhật lên database
+        transaction.update(userRef, { 
+          coins: newCoins, 
+          inventory: inventory 
+        });
+
+        // TRẢ VỀ SỐ XU MỚI RA BÊN NGOÀI
+        return newCoins; 
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Giao dịch thất bại");
-      }
-
-      // --- GIAO DỊCH THÀNH CÔNG TỪ SERVER TRẢ VỀ ---
-      toast.dismiss(loadingToast);
-      toast.success(`${text.successOwned} ${item.name}!`);
-
-      // Cập nhật lại UI và Ref cục bộ cho đồng bộ với Server
-      gs.coins = data.newCoins;
-      if (type === 'skin') {
-        gs.inventory.skins.push(item.id);
-        selectSkin(item.id);
-      } else {
-        gs.inventory.bgs.push(item.id);
-        selectBg(item.id);
-      }
-
-      setUIUpdates(prev => ({...prev, coins: gs.coins}));
-      
-      // Cập nhật trạng thái "Đã trang bị" (Equipped) lên Firebase
-      await saveUserProfile(); 
+      // Trả về thành công kèm số xu mới lấy từ kết quả giao dịch
+      res.json({ success: true, newCoins: finalCoins });
 
     } catch (error) {
-      toast.dismiss(loadingToast);
-      toast.error(`Lỗi: ${error.message}`);
+      console.error('Lỗi giao dịch:', error);
+      res.status(500).json({ error: error.message });
     }
   };
 
