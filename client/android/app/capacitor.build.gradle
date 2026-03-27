@@ -12,6 +12,7 @@ dependencies {
     implementation project(':capacitor-community-admob')
     implementation project(':capacitor-community-device')
     implementation project(':capacitor-device')
+    implementation project(':capawesome-capacitor-app-update')
     implementation project(':codetrix-studio-capacitor-google-auth')
     implementation project(':revenuecat-purchases-capacitor')
 

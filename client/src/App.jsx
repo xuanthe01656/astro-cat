@@ -10,6 +10,7 @@ import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 import { Device } from '@capacitor/device';
 import { Purchases } from '@revenuecat/purchases-capacitor';
 import { t } from './utils/translations';
+import { AppUpdate } from '@capawesome/capacitor-app-update';
 
 
 // --- IMPORT CÁC HẰNG SỐ VÀ COMPONENT ĐÃ TÁCH ---
@@ -177,6 +178,27 @@ useEffect(() => {
   };
 
   checkSecurity();
+}, []);
+useEffect(() => {
+  const checkAppUpdate = async () => {
+    // Chỉ chạy trên Native App (Android/iOS)
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const result = await AppUpdate.getAppUpdateInfo();
+        if (result.updateAvailability === 2) {
+          console.log("Phát hiện bản cập nhật mới!");
+          await AppUpdate.performImmediateUpdate();
+          /* // Lựa chọn 2: CẬP NHẬT LINH HOẠT (Flexible) - Tùy bạn chọn
+          // await AppUpdate.startFlexibleUpdate(); 
+          */
+        }
+      } catch (error) {
+        console.error("Lỗi khi kiểm tra bản cập nhật:", error);
+      }
+    }
+  };
+
+  checkAppUpdate();
 }, []);
   // Preload skins
   useEffect(() => {

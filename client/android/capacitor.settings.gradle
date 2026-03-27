@@ -11,6 +11,9 @@ project(':capacitor-community-device').projectDir = new File('../node_modules/@c
 include ':capacitor-device'
 project(':capacitor-device').projectDir = new File('../node_modules/@capacitor/device/android')
 
+include ':capawesome-capacitor-app-update'
+project(':capawesome-capacitor-app-update').projectDir = new File('../node_modules/@capawesome/capacitor-app-update/android')
+
 include ':codetrix-studio-capacitor-google-auth'
 project(':codetrix-studio-capacitor-google-auth').projectDir = new File('../node_modules/@codetrix-studio/capacitor-google-auth/android')
 
