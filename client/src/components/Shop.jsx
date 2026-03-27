@@ -9,10 +9,11 @@ export default function Shop({ currentUser, uiUpdates, setUIUpdates, gsRef, setS
   // 2. Lấy bộ từ vựng theo ngôn ngữ hiện tại
   const text = t[lang] || t['vi'];
   
-  // Logic mua vật phẩm dùng chung
+  // Logic mua vật phẩm đã được chuyển lên Server bảo mật
   const handlePurchase = async (type, item) => {
     const gs = gsRef.current;
     
+    // 1. Nếu đã sở hữu -> Chỉ việc trang bị (Lưu cục bộ và Firebase như cũ)
     const inventory = gs.inventory?.[type === 'skin' ? 'skins' : 'bgs'] || [];
     if (inventory.includes(item.id)) {
       if (type === 'skin') selectSkin(item.id);
@@ -21,24 +22,68 @@ export default function Shop({ currentUser, uiUpdates, setUIUpdates, gsRef, setS
       return;
     }
 
+    // 2. Nếu chưa sở hữu -> Bắt buộc phải đăng nhập mới được mua
+    if (!currentUser) {
+      toast.error(t[lang]?.reqLogin || "Vui lòng đăng nhập để mua!");
+      return;
+    }
+
     const price = Number(item.price);
+    // Tạm check ở client để phản hồi nhanh, Server sẽ check lại lần nữa
     if (Number(gs.coins) < price) {
       toast.error(text.errNotEnoughCoins);
       return;
     }
 
-    gs.coins -= price;
-    if (type === 'skin') {
-      gs.inventory.skins.push(item.id);
-      selectSkin(item.id);
-    } else {
-      gs.inventory.bgs.push(item.id);
-      selectBg(item.id);
-    }
+    const loadingToast = toast.loading("Đang xử lý giao dịch an toàn...");
 
-    setUIUpdates(prev => ({...prev, coins: gs.coins}));
-    await saveUserProfile();
-    toast.success(`${text.successOwned} ${item.name}!`);
+    try {
+      // Lấy Token định danh của Firebase Auth (Chìa khóa bảo mật)
+      const idToken = await currentUser.getIdToken(true);
+      
+      // Lấy URL Server (Tương tự như cách bạn setup Socket)
+      const API_URL = import.meta.env.VITE_SOCKET_URL || '';
+
+      // Gọi API lên Server
+      const response = await fetch(`${API_URL}/api/shop/purchase`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idToken: idToken,
+          type: type,
+          itemId: item.id
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Giao dịch thất bại");
+      }
+
+      // --- GIAO DỊCH THÀNH CÔNG TỪ SERVER TRẢ VỀ ---
+      toast.dismiss(loadingToast);
+      toast.success(`${text.successOwned} ${item.name}!`);
+
+      // Cập nhật lại UI và Ref cục bộ cho đồng bộ với Server
+      gs.coins = data.newCoins;
+      if (type === 'skin') {
+        gs.inventory.skins.push(item.id);
+        selectSkin(item.id);
+      } else {
+        gs.inventory.bgs.push(item.id);
+        selectBg(item.id);
+      }
+
+      setUIUpdates(prev => ({...prev, coins: gs.coins}));
+      
+      // Cập nhật trạng thái "Đã trang bị" (Equipped) lên Firebase
+      await saveUserProfile(); 
+
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      toast.error(`Lỗi: ${error.message}`);
+    }
   };
 
   const handleBuyVIP = async () => {

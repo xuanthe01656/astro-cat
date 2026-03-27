@@ -3,8 +3,20 @@ const path = require('path');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
+const admin = require('firebase-admin');
 require('dotenv').config();
+const serviceAccount = {
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+  privateKey: process.env.FIREBASE_PRIVATE_KEY 
+    ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') 
+    : undefined,
+};
 
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+const db = admin.firestore();
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
@@ -15,8 +27,72 @@ const io = socketIo(server, {
 });
 
 app.use(cors({ origin: "*" }));
-// Đã xóa express.json() vì không có API RESTful nào xử lý JSON
+app.use(express.json());
+const SHOP_PRICES = {
+  skin: { 'classic': 0, 'dog': 0, 'evilFly': 200, 'ufo': 300, 'plane': 500 },
+  bg: { 'deep': 0, 'sunset': 50, 'forest': 150, 'ocean': 200 }
+};
 
+// --- API XỬ LÝ MUA HÀNG BẢO MẬT ---
+app.post('/api/shop/purchase', async (req, res) => {
+  const { idToken, type, itemId } = req.body;
+
+  if (!idToken || !type || !itemId) {
+    return res.status(400).json({ error: 'Thiếu thông tin giao dịch' });
+  }
+
+  try {
+    // Xác thực người dùng qua Token
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+
+    // Kiểm tra xem vật phẩm có tồn tại và lấy giá
+    const itemPrice = SHOP_PRICES[type]?.[itemId];
+    if (itemPrice === undefined) {
+      return res.status(400).json({ error: 'Vật phẩm không tồn tại' });
+    }
+
+    const userRef = db.collection('users').doc(uid);
+
+    // Sử dụng Transaction để đảm bảo tính toàn vẹn dữ liệu (chống hack double-click)
+    await db.runTransaction(async (transaction) => {
+      const doc = await transaction.get(userRef);
+      if (!doc.exists) throw new Error('Không tìm thấy dữ liệu người dùng');
+
+      const data = doc.data();
+      const currentCoins = data.coins || 0;
+      const inventory = data.inventory || { skins: ['classic'], bgs: ['deep'] };
+
+      // Kỉểm tra người chơi đã sở hữu chưa
+      const targetList = type === 'skin' ? inventory.skins : inventory.bgs;
+      if (targetList.includes(itemId)) {
+        throw new Error('Bạn đã sở hữu vật phẩm này rồi');
+      }
+
+      // Kiểm tra đủ tiền không
+      if (currentCoins < itemPrice) {
+        throw new Error('Không đủ Xu để mua');
+      }
+
+      // Tiến hành trừ tiền và thêm đồ
+      targetList.push(itemId);
+      const newCoins = currentCoins - itemPrice;
+
+      // Cập nhật lên database
+      transaction.update(userRef, { 
+        coins: newCoins, 
+        inventory: inventory 
+      });
+    });
+
+    // Trả về thành công kèm số xu mới để Client đồng bộ
+    res.json({ success: true, newCoins: currentCoins - itemPrice });
+
+  } catch (error) {
+    console.error('Lỗi giao dịch:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 const clientPath = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(clientPath));
 const PORT = process.env.PORT || 3000;

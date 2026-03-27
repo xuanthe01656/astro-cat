@@ -1678,69 +1678,92 @@ useEffect(() => {
     };
   }, []);
   
+ // ==========================================
+  // HỆ THỐNG QUẢNG CÁO TẶNG THƯỞNG (ADMOB) - ĐÃ TỐI ƯU PRELOAD
   // ==========================================
-  // HỆ THỐNG QUẢNG CÁO TẶNG THƯỞNG (ADMOB)
-  // ==========================================
-  const pendingRewardRef = useRef(null); // Lưu lại người dùng đang xem QC để nhận xu hay nhận mạng
+  const pendingRewardRef = useRef(null); // Lưu lại người dùng đang xem QC để nhận xu hay mạng
+  const adReadyRef = useRef(false);      // Cờ đánh dấu quảng cáo đã tải sẵn sàng chưa
+  const AD_ID = 'ca-app-pub-8735238443425732/7696488422'; // ID thật của bạn
+
+  // Hàm tải ngầm quảng cáo
+  const preloadAd = async () => {
+    if (!Capacitor.isNativePlatform()) return;
+    try {
+      await AdMob.prepareRewardVideoAd({ adId: AD_ID, isTesting: false });
+      adReadyRef.current = true;
+      console.log("✅ Quảng cáo đã được preload sẵn sàng!");
+    } catch (error) {
+      console.error("❌ Lỗi preload quảng cáo:", error);
+      adReadyRef.current = false;
+    }
+  };
 
   useEffect(() => {
-  let rewardListener;
-  let dismissListener;
+    let rewardListener;
+    let dismissListener;
+    let failedListener;
 
-  const initAdMob = async () => {
-    try {
-      await AdMob.initialize();
-      
-      // Đăng ký listener và lưu vào biến để xóa sau này
-      rewardListener = await AdMob.addListener(RewardAdPluginEvents.Rewarded, () => {
-        const rewardType = pendingRewardRef.current;
-        if (rewardType === 'coin') {
-          gsRef.current.coins += 50; 
-          setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins }));
-          toast.success(t[langRef.current]?.rewardCoin);
-        } else if (rewardType === 'life') {
-          gsRef.current.lives += 1;  
-          setUIUpdates(prev => ({ ...prev, lives: gsRef.current.lives }));
-          toast.success(t[langRef.current]?.rewardLife);
-        }
-        saveUserProfile(); 
-        pendingRewardRef.current = null;
-      });
+    const initAdMob = async () => {
+      try {
+        await AdMob.initialize();
+        
+        // 1. Nhận thưởng thành công
+        rewardListener = await AdMob.addListener(RewardAdPluginEvents.Rewarded, () => {
+          const rewardType = pendingRewardRef.current;
+          if (rewardType === 'coin') {
+            gsRef.current.coins += 50; 
+            gsRef.current.dailyCoinCount += 1; // Thêm dòng này để ghi nhận số lần lấy xu
+            setUIUpdates(prev => ({ ...prev, coins: gsRef.current.coins }));
+            toast.success(t[langRef.current]?.rewardCoin);
+          } else if (rewardType === 'life') {
+            gsRef.current.lives += 1;  
+            setUIUpdates(prev => ({ ...prev, lives: gsRef.current.lives }));
+            toast.success(t[langRef.current]?.rewardLife);
+          }
+          saveUserProfile(); 
+          pendingRewardRef.current = null;
+        });
 
-      dismissListener = await AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
-         setIsWatchingAd(false);
-      });
+        // 2. Khi đóng quảng cáo (dù có nhận thưởng hay không) -> Tải sẵn luôn video tiếp theo
+        dismissListener = await AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
+          setIsWatchingAd(false);
+          adReadyRef.current = false; // Reset cờ
+          preloadAd(); // Kích hoạt tải ngầm quảng cáo mới
+        });
 
-    } catch (e) {
-      console.log("Đang chạy trên Web hoặc lỗi khởi tạo AdMob.");
-    }
-  };
+        // 3. (Tuỳ chọn) Bắt lỗi nếu quảng cáo load xịt giữa chừng
+        failedListener = await AdMob.addListener(RewardAdPluginEvents.FailedToLoad, () => {
+          adReadyRef.current = false;
+        });
 
-  initAdMob();
+        // GỌI PRELOAD NGAY KHI KHỞI TẠO XONG
+        preloadAd();
 
-  return () => {
-    // Kiểm tra an toàn trước khi xóa listener
-    if (rewardListener && rewardListener.remove) {
-      rewardListener.remove();
-    }
-    if (dismissListener && dismissListener.remove) {
-      dismissListener.remove();
-    }
-  };
-}, []);
+      } catch (e) {
+        console.log("Đang chạy trên Web hoặc lỗi khởi tạo AdMob.");
+      }
+    };
+
+    initAdMob();
+
+    return () => {
+      if (rewardListener && rewardListener.remove) rewardListener.remove();
+      if (dismissListener && dismissListener.remove) dismissListener.remove();
+      if (failedListener && failedListener.remove) failedListener.remove();
+    };
+  }, []);
 
   const watchAd = async (rewardType) => {
     if (!currentUser) {
-      toast.error(t[langRef.current]?.errNotLoggedIn);
+      toast.error(t[langRef.current]?.reqLoginReward || "Vui lòng đăng nhập!");
       return;
     }
     if (rewardType === 'life' && gsRef.current.lives >= 10) {
       toast.error(t[langRef.current]?.errLifeFullAd);
       return; 
     }
-    // THÊM KIỂM TRA GIỚI HẠN NHẬN XU (TỐI ĐA 5 LẦN/NGÀY)
     if (rewardType === 'coin' && gsRef.current.dailyCoinCount >= 5) {
-      toast.error(t[langRef.current]?.errDailyCoinLimit);
+      toast.error(t[langRef.current]?.errCoinLimitAd);
       return;
     }
     if (isWatchingAd) return;
@@ -1748,37 +1771,47 @@ useEffect(() => {
     setIsWatchingAd(true);
     pendingRewardRef.current = rewardType;
 
-    // KIỂM TRA NỀN TẢNG TRƯỚC KHI CHẠY ADMOB
-    const isNative = Capacitor.isNativePlatform(); // Trả về true nếu là Android/iOS
+    const isNative = Capacitor.isNativePlatform();
 
     if (!isNative) {
-      // NẾU LÀ WEB -> CHẠY GIẢ LẬP LUÔN, KHÔNG THỬ ADMOB
       runFakeAd(rewardType);
       return;
     }
 
-    // NẾU LÀ NATIVE (ANDROID/IOS) -> CHẠY ADMOB THẬT
-    const loadingToast = toast.loading(t[langRef.current]?.loadingAd);
-    try {
-      //const adId = 'ca-app-pub-3940256099942544/5224354917';
-      const adId = 'ca-app-pub-8735238443425732/7696488422'; // ID quảng cáo thật đã tạo trên AdMob
-      await AdMob.prepareRewardVideoAd({ adId, isTesting: false });
-      toast.dismiss(loadingToast);
-      await AdMob.showRewardVideoAd();
-    } catch (error) {
-      console.error("AdMob Native Error:", error);
-      toast.dismiss(loadingToast);
-      setIsWatchingAd(false);
-      pendingRewardRef.current = null;
-      toast.error(t[langRef.current]?.errAdNotReady || "Quảng cáo chưa sẵn sàng. Vui lòng thử lại sau!");
+    // --- LOGIC PHÁT QUẢNG CÁO ĐÃ TỐI ƯU ---
+    if (adReadyRef.current) {
+      // TRƯỜNG HỢP 1: Quảng cáo đã tải sẵn -> Bật lên ngay lập tức!
+      try {
+        await AdMob.showRewardVideoAd();
+        adReadyRef.current = false; 
+      } catch (error) {
+        console.error("Lỗi khi show ad đã preload:", error);
+        setIsWatchingAd(false);
+        pendingRewardRef.current = null;
+        toast.error("Lỗi phát quảng cáo. Vui lòng thử lại!");
+        preloadAd(); // Thử tải lại
+      }
+    } else {
+      // TRƯỜNG HỢP 2: Fallback (Mạng chậm, preload chưa kịp xong) -> Phải chờ tải
+      const loadingToast = toast.loading(t[langRef.current]?.adConnecting || "Đang kết nối quảng cáo...");
+      try {
+        await AdMob.prepareRewardVideoAd({ adId: AD_ID, isTesting: false });
+        toast.dismiss(loadingToast);
+        await AdMob.showRewardVideoAd();
+      } catch (error) {
+        console.error("AdMob Fallback Error:", error);
+        toast.dismiss(loadingToast);
+        setIsWatchingAd(false);
+        pendingRewardRef.current = null;
+        toast.error(t[langRef.current]?.errAdNotReady || "Quảng cáo chưa sẵn sàng. Vui lòng thử lại sau!");
+      }
     }
   };
 
-  // Tách hàm giả lập ra riêng cho sạch code
   const runFakeAd = (rewardType) => {
     setWebAd({ isPlaying: true, type: rewardType });
   };
-  // Người dùng xem đến giây cuối cùng -> Xử lý nhận thưởng
+
   const handleWebAdComplete = () => {
     const rewardType = webAd.type;
     setWebAd({ isPlaying: false, type: null });
@@ -1799,7 +1832,6 @@ useEffect(() => {
     pendingRewardRef.current = null;
   };
 
-  // Người dùng bấm tắt giữa chừng -> Không cho thưởng
   const handleWebAdClose = () => {
     setWebAd({ isPlaying: false, type: null });
     setIsWatchingAd(false);
