@@ -62,6 +62,7 @@ export const t = {
     getLifeFree: "FREE 1 MẠNG",
     useBtn: "DÙNG",
     selectBtn: "CHỌN",
+    adCompleteToEarn:"Xem hết video để nhận thưởng!",
     
     // Toast Messages
     errNotEnoughCoins: "Không đủ Xu!",
@@ -186,6 +187,7 @@ export const t = {
     getLifeFree: "FREE 1 LIFE",
     useBtn: "IN USE",
     selectBtn: "EQUIP",
+    adCompleteToEarn:"Watch the full video to earn a reward!",
     
     // Toast Messages
     errNotEnoughCoins: "Not enough Coins!",

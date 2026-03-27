@@ -1768,7 +1768,9 @@ useEffect(() => {
     } catch (error) {
       console.error("AdMob Native Error:", error);
       toast.dismiss(loadingToast);
-      runFakeAd(rewardType); // Fallback nếu AdMob thật bị lỗi trên máy thật
+      setIsWatchingAd(false);
+      pendingRewardRef.current = null;
+      toast.error(t[langRef.current]?.errAdNotReady || "Quảng cáo chưa sẵn sàng. Vui lòng thử lại sau!");
     }
   };
 
