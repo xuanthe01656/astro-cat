@@ -32,7 +32,6 @@ const SHOP_PRICES = {
   skin: { 'classic': 0, 'dog': 0, 'evilFly': 200, 'ufo': 300, 'plane': 500 },
   bg: { 'deep': 0, 'sunset': 50, 'forest': 150, 'ocean': 200 }
 };
-
 // --- API XỬ LÝ MUA HÀNG BẢO MẬT ---
 app.post('/api/shop/purchase', async (req, res) => {
   const { idToken, type, itemId } = req.body;
@@ -54,8 +53,8 @@ app.post('/api/shop/purchase', async (req, res) => {
 
     const userRef = db.collection('users').doc(uid);
 
-    // Sử dụng Transaction để đảm bảo tính toàn vẹn dữ liệu (chống hack double-click)
-    await db.runTransaction(async (transaction) => {
+    // Hứng kết quả trả về từ Transaction vào biến finalCoins
+    const finalCoins = await db.runTransaction(async (transaction) => {
       const doc = await transaction.get(userRef);
       if (!doc.exists) throw new Error('Không tìm thấy dữ liệu người dùng');
 
@@ -83,10 +82,13 @@ app.post('/api/shop/purchase', async (req, res) => {
         coins: newCoins, 
         inventory: inventory 
       });
+
+      // Bắt buộc: Trả về số xu mới ra bên ngoài
+      return newCoins;
     });
 
-    // Trả về thành công kèm số xu mới để Client đồng bộ
-    res.json({ success: true, newCoins: currentCoins - itemPrice });
+    // Trả về thành công kèm số xu mới lấy từ kết quả giao dịch
+    res.json({ success: true, newCoins: finalCoins });
 
   } catch (error) {
     console.error('Lỗi giao dịch:', error);
