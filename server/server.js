@@ -32,7 +32,7 @@ const SHOP_PRICES = {
   skin: { 'classic': 0, 'dog': 0, 'evilFly': 200, 'ufo': 300, 'plane': 500 },
   bg: { 'deep': 0, 'sunset': 50, 'forest': 150, 'ocean': 200 }
 };
-// --- API XỬ LÝ MUA HÀNG BẢO MẬT ---
+// Gọi API purchase
 app.post('/api/shop/purchase', async (req, res) => {
   const { idToken, type, itemId } = req.body;
 
@@ -45,7 +45,6 @@ app.post('/api/shop/purchase', async (req, res) => {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const uid = decodedToken.uid;
 
-    // Kiểm tra xem vật phẩm có tồn tại và lấy giá
     const itemPrice = SHOP_PRICES[type]?.[itemId];
     if (itemPrice === undefined) {
       return res.status(400).json({ error: 'Vật phẩm không tồn tại' });
@@ -53,7 +52,7 @@ app.post('/api/shop/purchase', async (req, res) => {
 
     const userRef = db.collection('users').doc(uid);
 
-    // Hứng kết quả trả về từ Transaction vào biến finalCoins
+    // HỨNG KẾT QUẢ VÀO BIẾN finalCoins
     const finalCoins = await db.runTransaction(async (transaction) => {
       const doc = await transaction.get(userRef);
       if (!doc.exists) throw new Error('Không tìm thấy dữ liệu người dùng');
@@ -62,32 +61,28 @@ app.post('/api/shop/purchase', async (req, res) => {
       const currentCoins = data.coins || 0;
       const inventory = data.inventory || { skins: ['classic'], bgs: ['deep'] };
 
-      // Kỉểm tra người chơi đã sở hữu chưa
       const targetList = type === 'skin' ? inventory.skins : inventory.bgs;
       if (targetList.includes(itemId)) {
         throw new Error('Bạn đã sở hữu vật phẩm này rồi');
       }
 
-      // Kiểm tra đủ tiền không
       if (currentCoins < itemPrice) {
         throw new Error('Không đủ Xu để mua');
       }
 
-      // Tiến hành trừ tiền và thêm đồ
       targetList.push(itemId);
       const newCoins = currentCoins - itemPrice;
 
-      // Cập nhật lên database
       transaction.update(userRef, { 
         coins: newCoins, 
         inventory: inventory 
       });
 
-      // Bắt buộc: Trả về số xu mới ra bên ngoài
-      return newCoins;
+      // TRẢ VỀ SỐ XU MỚI ĐỂ DÙNG BÊN NGOÀI
+      return newCoins; 
     });
 
-    // Trả về thành công kèm số xu mới lấy từ kết quả giao dịch
+    // Trả về thành công kèm số xu mới (dùng finalCoins)
     res.json({ success: true, newCoins: finalCoins });
 
   } catch (error) {
