@@ -13,7 +13,7 @@ export default function Shop({ currentUser, uiUpdates, setUIUpdates, gsRef, setS
   const handlePurchase = async (type, item) => {
     const gs = gsRef.current;
     
-    // 1. Nếu đã sở hữu -> Chỉ việc trang bị (Lưu cục bộ và Firebase như cũ)
+    // 1. Nếu đã sở hữu -> Chỉ việc trang bị
     const inventory = gs.inventory?.[type === 'skin' ? 'skins' : 'bgs'] || [];
     if (inventory.includes(item.id)) {
       if (type === 'skin') selectSkin(item.id);
@@ -22,74 +22,63 @@ export default function Shop({ currentUser, uiUpdates, setUIUpdates, gsRef, setS
       return;
     }
 
-    // 2. Nếu chưa sở hữu -> Bắt buộc phải đăng nhập mới được mua
+    // 2. Nếu chưa sở hữu -> Bắt buộc phải đăng nhập
     if (!currentUser) {
       toast.error(t[lang]?.reqLogin || "Vui lòng đăng nhập để mua!");
       return;
     }
 
     const price = Number(item.price);
-    // Tạm check ở client để phản hồi nhanh, Server sẽ check lại lần nữa
     if (Number(gs.coins) < price) {
-      toast.error(text.errNotEnoughCoins);
+      toast.error(t[lang]?.errNotEnoughCoins || "Không đủ Xu!");
       return;
     }
 
     const loadingToast = toast.loading("Đang xử lý giao dịch an toàn...");
 
     try {
-      // Xác thực người dùng qua Token
-      const decodedToken = await admin.auth().verifyIdToken(idToken);
-      const uid = decodedToken.uid;
+      // BƯỚC QUAN TRỌNG Ở CLIENT: Lấy Token định danh
+      const idToken = await currentUser.getIdToken(true);
+      
+      const API_URL = import.meta.env.VITE_SOCKET_URL || '';
 
-      // Kiểm tra xem vật phẩm có tồn tại và lấy giá
-      const itemPrice = SHOP_PRICES[type]?.[itemId];
-      if (itemPrice === undefined) {
-        return res.status(400).json({ error: 'Vật phẩm không tồn tại' });
-      }
-
-      const userRef = db.collection('users').doc(uid);
-
-      // SỬA Ở ĐÂY: Hứng giá trị trả về từ Transaction vào biến `finalCoins`
-      const finalCoins = await db.runTransaction(async (transaction) => {
-        const doc = await transaction.get(userRef);
-        if (!doc.exists) throw new Error('Không tìm thấy dữ liệu người dùng');
-
-        const data = doc.data();
-        const currentCoins = data.coins || 0;
-        const inventory = data.inventory || { skins: ['classic'], bgs: ['deep'] };
-
-        // Kỉểm tra người chơi đã sở hữu chưa
-        const targetList = type === 'skin' ? inventory.skins : inventory.bgs;
-        if (targetList.includes(itemId)) {
-          throw new Error('Bạn đã sở hữu vật phẩm này rồi');
-        }
-
-        // Kiểm tra đủ tiền không
-        if (currentCoins < itemPrice) {
-          throw new Error('Không đủ Xu để mua');
-        }
-
-        // Tiến hành trừ tiền và thêm đồ
-        targetList.push(itemId);
-        const newCoins = currentCoins - itemPrice;
-
-        // Cập nhật lên database
-        transaction.update(userRef, { 
-          coins: newCoins, 
-          inventory: inventory 
-        });
-
-        // TRẢ VỀ SỐ XU MỚI RA BÊN NGOÀI
-        return newCoins; 
+      // Gọi lệnh fetch (gửi thư) lên Server thay vì tự xử lý
+      const response = await fetch(`${API_URL}/api/shop/purchase`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idToken: idToken,
+          type: type,
+          itemId: item.id
+        })
       });
 
-      // Trả về thành công kèm số xu mới lấy từ kết quả giao dịch
-      res.json({ success: true, newCoins: finalCoins });
+      const data = await response.json(); // Ở Client dùng response.json() để đọc data
+
+      if (!response.ok) {
+        throw new Error(data.error || "Giao dịch thất bại");
+      }
+
+      // --- SERVER TRẢ VỀ THÀNH CÔNG ---
+      toast.dismiss(loadingToast);
+      toast.success(`${t[lang]?.successOwned || 'Đã sở hữu'} ${item.name}!`);
+
+      // Cập nhật lại UI và Ref cục bộ cho đồng bộ với Server
+      gs.coins = data.newCoins;
+      if (type === 'skin') {
+        gs.inventory.skins.push(item.id);
+        selectSkin(item.id);
+      } else {
+        gs.inventory.bgs.push(item.id);
+        selectBg(item.id);
+      }
+
+      setUIUpdates(prev => ({...prev, coins: gs.coins}));
+      await saveUserProfile(); 
 
     } catch (error) {
-      console.error('Lỗi giao dịch:', error);
-      res.status(500).json({ error: error.message });
+      toast.dismiss(loadingToast);
+      toast.error(`Lỗi: ${error.message}`);
     }
   };
 
